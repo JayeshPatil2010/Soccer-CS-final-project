@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Predictor & Sim</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>⚽ Match Simulator Pro</h1>
+        
+        <div class="card">
+            <div class="grid-form">
+                <div class="field">
+                    <label>Home Team</label>
+                    <select id="teamA"></select>
+                </div>
+                <div class="field">
+                    <label>Away Team</label>
+                    <select id="teamB"></select>
+                </div>
+            </div>
+            <div class="actions">
+                <button id="predictBtn" class="btn-primary">Calculate Odds</button>
+                <button id="simBtn" class="btn-secondary">Start Live Sim</button>
+            </div>
+        </div>
+
+        <div id="simArea" class="card sim-card" style="display:none;">
+            <div class="sim-header">
+                <h2 id="simScore">Team A 0 - 0 Team B</h2>
+                <div id="simTime">0'</div>
+            </div>
+            <div id="simLog" class="sim-log">
+                </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
