@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>International Soccer Predictor Pro</title>
+    <title>Predictor Pro | International Soccer Engine</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 </head>
@@ -45,7 +45,10 @@
             </div>
         </div>
 
-        <button id="predictBtn" onclick="predictMatch()">Analyze Matchup</button>
+        <div class="button-group">
+            <button id="predictBtn" onclick="predictMatch()">Analyze Matchup</button>
+            <button id="randomBtn" onclick="randomizeMatch()" class="secondary-btn">Randomize</button>
+        </div>
 
         <div id="resultsArea" class="hidden">
             <div class="divider"></div>
