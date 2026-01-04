@@ -20,22 +20,18 @@
                 <label>Home Team</label>
                 <select id="homeTeam"><option>Loading...</option></select>
             </div>
-
             <div class="form-group">
                 <label>Away Team</label>
                 <select id="awayTeam"><option>Loading...</option></select>
             </div>
-
             <div class="form-group">
                 <label>Tournament</label>
-                <select id="tournament"><option>Select Tournament</option></select>
+                <select id="tournament"></select>
             </div>
-
             <div class="form-group">
                 <label>City</label>
-                <select id="city"><option>Select City</option></select>
+                <select id="city"></select>
             </div>
-            
             <div class="form-group full">
                 <label class="checkbox-container">
                     <input type="checkbox" id="isNeutral">
@@ -79,6 +75,29 @@
                     <div id="barHome" class="bar home-bg"></div>
                     <div id="barDraw" class="bar draw-bg"></div>
                     <div id="barAway" class="bar away-bg"></div>
+                </div>
+
+                <div class="details-toggle" onclick="toggleDetails()">
+                    <span>View Detailed Analysis</span>
+                    <span id="toggleIcon">▼</span>
+                </div>
+
+                <div id="detailsContent" class="hidden-details">
+                    <div class="details-section">
+                        <h3>Top 5 Predicted Scorelines</h3>
+                        <table id="scoreTable">
+                            <thead><tr><th>Score</th><th>Chance</th></tr></thead>
+                            <tbody id="scoreBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="details-section">
+                        <h3>Engine Data Points</h3>
+                        <ul class="data-list">
+                            <li><strong>Elo Context:</strong> <span id="eloData"></span></li>
+                            <li><strong>Goal Expectancy (λ):</strong> <span id="lambdaData"></span></li>
+                            <li><strong>Historical Info:</strong> <span id="historyData"></span></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
