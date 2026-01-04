@@ -2,65 +2,83 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AnalyticsPro | Football Simulation Engine</title>
+    <title>Elite Match Engine | Analytics Pro</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="app-wrapper">
-        <nav class="sidebar">
-            <div class="logo">⚽ AnalyticsPro</div>
-            <button class="nav-btn active" onclick="showScreen('home')">Dashboard</button>
-            <button class="nav-btn" onclick="showScreen('prediction')">Match Predictor</button>
-            <button class="nav-btn" onclick="showScreen('bracket')">Tournament Sim</button>
-        </nav>
-
-        <main class="content-area">
-            <section id="homeScreen" class="screen">
-                <div class="hero">
-                    <h1>Welcome to the Engine</h1>
-                    <p>Select a module from the sidebar to begin analyzing football data.</p>
-                </div>
-            </section>
-
-            <section id="predictionScreen" class="screen" style="display:none;">
-                <div class="card">
-                    <h2>Match Predictor (10,000 Sims)</h2>
-                    <div class="form-grid">
-                        <select id="teamA"></select>
-                        <span class="vs">VS</span>
-                        <select id="teamB"></select>
-                    </div>
-                    <button class="btn-primary" onclick="handlePrediction()">Run Analysis</button>
-                    
-                    <div id="predictionResults" class="results-panel" style="display:none;">
-                        <div id="resultText" class="favored-text"></div>
-                        <div class="prob-bar-container">
-                            <div id="probA" class="prob-box"></div>
-                            <div id="probDraw" class="prob-box"></div>
-                            <div id="probB" class="prob-box"></div>
-                        </div>
-                        <h3>Top Likely Scorelines</h3>
-                        <table id="scoreTable">
-                            <thead><tr><th>Score</th><th>Occurrences</th><th>Probability</th></tr></thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-
-            <section id="bracketScreen" class="screen" style="display:none;">
-                <div class="card">
-                    <h2>Tournament Bracket Simulation</h2>
-                    <button class="btn-primary" onclick="runFullSimulation()">Generate & Run Tournament</button>
-                    <div class="bracket-container">
-                        <div id="bracketVisualization" class="bracket-grid"></div>
-                        <div id="bracketRounds" class="bracket-log"></div>
-                    </div>
-                </div>
-            </section>
-        </main>
+    <div id="hubScreen" class="full-screen">
+        <div class="glass-panel">
+            <h1>MATCH ENGINE <span class="highlight">v2.0</span></h1>
+            <div class="hub-grid">
+                <button class="mega-btn" onclick="openModule('predictor')">
+                    <div class="icon">📈</div>
+                    <h3>Predictor</h3>
+                    <p>Heuristic + Elo Analysis</p>
+                </button>
+                <button class="mega-btn" onclick="openModule('simulator')">
+                    <div class="icon">🎮</div>
+                    <h3>Live Sim</h3>
+                    <p>Minute-by-Minute Engine</p>
+                </button>
+            </div>
+        </div>
     </div>
+
+    <div id="predictorModule" class="app-module" style="display:none;">
+        <nav class="top-nav">
+            <button onclick="goHome()">← Back to Hub</button>
+            <h2>Match Setup & Heuristics</h2>
+        </nav>
+        
+        <div class="setup-grid">
+            <div class="card">
+                <div class="input-row">
+                    <label>Team A:</label><select id="teamA"></select>
+                    <label>Team B:</label><select id="teamB"></select>
+                </div>
+                <div class="input-row">
+                    <label>Tournament:</label><select id="tournament"></select>
+                    <label>City:</label><select id="city"></select>
+                </div>
+                <div class="input-row">
+                    <label>Neutral:</label>
+                    <select id="isNeutral">
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                    </select>
+                </div>
+                <button class="action-btn" onclick="executeFullAnalysis()">PROCEED WITH PREDICTION</button>
+            </div>
+
+            <div id="analysisOutput" class="card result-card" style="display:none;">
+                <div class="heuristic-box">
+                    <h3>HISTORICAL REASONING BREAKDOWN</h3>
+                    <ul id="heuristicList"></ul>
+                    <div class="total-bar" id="heuristicTotal"></div>
+                </div>
+                <hr>
+                <div class="elo-box">
+                    <h3>ELO-BASED PREDICTION & SCORELINE</h3>
+                    <div id="eloStats"></div>
+                    <div class="prob-row" id="probDisplay"></div>
+                    <div class="top-scores">
+                        <h4>Top Predicted Scorelines:</h4>
+                        <ol id="scoreLines"></ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="simulatorModule" class="app-module" style="display:none;">
+        <nav class="top-nav"><button onclick="goHome()">← Back to Hub</button></nav>
+        <div class="sim-container">
+            <div id="simBoard" class="scoreboard">0 - 0</div>
+            <div id="simClock">00:00</div>
+            <div id="simLog" class="log-area"></div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
