@@ -1,0 +1,27 @@
+:root {
+    --primary: #2c3e50;
+    --success: #27ae60;
+    --warning: #f1c40f;
+    --danger: #e74c3c;
+    --dark: #1a1a1a;
+    --light: #f4f7f6;
+}
+
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--light); padding: 20px; }
+.container { max-width: 700px; margin: auto; }
+.card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+.grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+label { display: block; margin-bottom: 5px; font-weight: bold; color: var(--primary); }
+select { width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc; }
+.actions { display: flex; gap: 10px; }
+button { flex: 1; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; }
+.btn-primary { background: var(--primary); }
+.btn-secondary { background: var(--success); }
+
+.sim-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; margin-bottom: 10px; }
+#simTime { font-size: 1.5rem; font-weight: bold; color: var(--danger); }
+.sim-log { height: 300px; overflow-y: auto; background: var(--dark); color: #00ff00; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 0.9rem; }
+.log-entry { margin-bottom: 5px; border-left: 3px solid #444; padding-left: 8px; }
+.goal { color: #2ecc71; font-weight: bold; border-left-color: #2ecc71; }
+.yellow { color: #f1c40f; border-left-color: #f1c40f; }
+.red { color: #e74c3c; border-left-color: #e74c3c; }
