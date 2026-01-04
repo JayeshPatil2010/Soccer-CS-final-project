@@ -1,99 +1,76 @@
 /**
- * International Soccer Predictor - Engine Logic
- * Using Poisson Distribution calibrated by historical results
+ * International Soccer Predictor Logic
+ * JayeshPatil2010/Soccer-CS-final-project
  */
 
-// --- CONFIGURATION ---
-// Replace these with your actual Raw GitHub URLs
-const ELO_CSV_URL = 'https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/elos.csv';
-const RESULTS_CSV_URL = 'https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/results.csv';
+const BASE_URL = 'https://raw.githubusercontent.com/JayeshPatil2010/Soccer-CS-final-project/main/';
+const ELO_CSV_URL = BASE_URL + 'elos.csv';
+const RESULTS_CSV_URL = BASE_URL + 'results.csv';
 
 let eloDatabase = [];
-let globalAvgGoals = 1.35; // Default fallback until results.csv loads
+let globalAvgGoals = 1.35; // Calibrated dynamically from results.csv
 
-// --- INITIALIZATION ---
 window.addEventListener('DOMContentLoaded', () => {
-    loadData();
+    loadProjectData();
 });
 
-async function loadData() {
-    // 1. Load ELO Ratings
+async function loadProjectData() {
+    // 1. Fetch Elo Ratings
     Papa.parse(ELO_CSV_URL, {
         download: true,
         header: true,
         skipEmptyLines: true,
         complete: function(eloResults) {
             eloDatabase = eloResults.data;
-            populateTeamDropdowns();
+            populateTeamLists();
             
-            // 2. Load Match Results to calibrate the Poisson "Lambda"
+            // 2. Fetch Results for Poisson Calibration
             Papa.parse(RESULTS_CSV_URL, {
                 download: true,
                 header: true,
                 skipEmptyLines: true,
                 complete: function(matchResults) {
-                    calibrateModel(matchResults.data);
+                    calibratePoisson(matchResults.data);
                 }
             });
         }
     });
 }
 
-function populateTeamDropdowns() {
+function populateTeamLists() {
     const homeSelect = document.getElementById('homeTeam');
     const awaySelect = document.getElementById('awayTeam');
-    
-    // Get unique team names and sort alphabetically
     const teams = [...new Set(eloDatabase.map(row => row.team))].filter(t => t).sort();
     
-    const optionsHTML = teams.map(team => `<option value="${team}">${team}</option>`).join('');
+    const optionsHTML = teams.map(t => `<option value="${t}">${t}</option>`).join('');
     homeSelect.innerHTML = optionsHTML;
     awaySelect.innerHTML = optionsHTML;
 }
 
-/**
- * Calibrates the model by finding the average goals per team 
- * in all international matches since 2020.
- */
-function calibrateModel(data) {
-    if (!data || data.length === 0) return;
-    
+function calibratePoisson(data) {
+    if (!data.length) return;
     let totalGoals = 0;
-    let matchCount = 0;
-
-    data.forEach(match => {
-        const homeS = parseInt(match.home_score);
-        const awayS = parseInt(match.away_score);
-        if (!isNaN(homeS) && !isNaN(awayS)) {
-            totalGoals += (homeS + awayS);
-            matchCount++;
-        }
+    data.forEach(m => {
+        totalGoals += (parseInt(m.home_score) || 0) + (parseInt(m.away_score) || 0);
     });
-
-    // Average goals scored by ONE team in a match
-    globalAvgGoals = (totalGoals / (matchCount * 2));
-    console.log(`Model calibrated. Baseline Lambda: ${globalAvgGoals.toFixed(3)}`);
+    // Avg goals per team per match
+    globalAvgGoals = (totalGoals / (data.length * 2));
+    console.log("Model Calibrated. Goal Average:", globalAvgGoals.toFixed(3));
 }
 
-// --- MATH CORE ---
-
+// Math Utility
 function factorial(n) {
-    if (n < 0) return 0;
-    if (n === 0) return 1;
-    let res = 1;
-    for (let i = 2; i <= n; i++) res *= i;
-    return res;
+    if (n <= 1) return 1;
+    let r = 1;
+    for (let i = 2; i <= n; i++) r *= i;
+    return r;
 }
 
-/**
- * Poisson Formula: P(k; λ) = (λ^k * e^-λ) / k!
- */
-function getPoisson(k, lambda) {
+function poisson(k, lambda) {
     return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k);
 }
 
-// --- PREDICTION ENGINE ---
-
+// Prediction Logic
 function predictMatch() {
     const homeName = document.getElementById('homeTeam').value;
     const awayName = document.getElementById('awayTeam').value;
@@ -101,64 +78,44 @@ function predictMatch() {
     const homeElo = eloDatabase.find(t => t.team === homeName);
     const awayElo = eloDatabase.find(t => t.team === awayName);
 
-    if (!homeElo || !awayElo) {
-        alert("Team data not found. Please wait for CSVs to load.");
-        return;
-    }
+    if (!homeElo || !awayElo) return;
 
-    // 1. Calculate Expected Goals (Lambda) for both teams
-    // We compare Offensive Elo of Attacker vs Defensive Elo of Defender
+    // λ (Lambda) calculation based on offensive/defensive Elo ratios
     let lambdaHome = (parseFloat(homeElo.offensive_elo) / parseFloat(awayElo.defensive_elo)) * globalAvgGoals;
     let lambdaAway = (parseFloat(awayElo.offensive_elo) / parseFloat(homeElo.defensive_elo)) * globalAvgGoals;
 
-    // 2. Adjust for Home Advantage (standard international boost is ~10%)
+    // Standard Home Advantage Multiplier
     lambdaHome *= 1.10;
 
-    // 3. Find Most Likely Scoreline
-    let maxProbability = 0;
-    let predictedHomeScore = 0;
-    let predictedAwayScore = 0;
-
-    // We check every score combination from 0-0 to 8-8
-    for (let h = 0; h <= 8; h++) {
-        for (let a = 0; a <= 8; a++) {
-            let prob = getPoisson(h, lambdaHome) * getPoisson(a, lambdaAway);
-            if (prob > maxProbability) {
-                maxProbability = prob;
-                predictedHomeScore = h;
-                predictedAwayScore = a;
+    // Find Mode (Most Likely Score)
+    let maxP = 0, predH = 0, predA = 0;
+    for (let h = 0; h <= 6; h++) {
+        for (let a = 0; a <= 6; a++) {
+            let p = poisson(h, lambdaHome) * poisson(a, lambdaAway);
+            if (p > maxP) {
+                maxP = p; predH = h; predA = a;
             }
         }
     }
 
-    // 4. Calculate Home Win Probability (Sum of all h > a)
-    let homeWinProb = 0;
+    // Win Probability
+    let winProb = 0;
     for (let h = 1; h <= 10; h++) {
         for (let a = 0; a < h; a++) {
-            homeWinProb += getPoisson(h, lambdaHome) * getPoisson(a, lambdaAway);
+            winProb += poisson(h, lambdaHome) * poisson(a, lambdaAway);
         }
     }
 
-    updateUI(homeName, awayName, predictedHomeScore, predictedAwayScore, homeWinProb);
+    renderResults(homeName, awayName, predH, predA, winProb);
 }
 
-// --- UI UPDATES ---
-
-function updateUI(home, away, hScore, aScore, winProb) {
-    const resultsArea = document.getElementById('resultsArea');
-    const probBar = document.getElementById('probBar');
-    
-    resultsArea.classList.remove('hidden');
-    
+function renderResults(home, away, hScore, aScore, prob) {
+    document.getElementById('resultsArea').classList.remove('hidden');
     document.getElementById('matchHeading').innerText = `${home} vs ${away}`;
     document.getElementById('homeScore').innerText = hScore;
     document.getElementById('awayScore').innerText = aScore;
     
-    const winPercentage = (winProb * 100).toFixed(1);
-    document.getElementById('winProb').innerText = `${winPercentage}%`;
-    
-    // Smoothly animate the progress bar
-    setTimeout(() => {
-        probBar.style.width = `${winPercentage}%`;
-    }, 50);
+    const percent = (prob * 100).toFixed(1);
+    document.getElementById('winProb').innerText = `${percent}%`;
+    document.getElementById('probBar').style.width = `${percent}%`;
 }
