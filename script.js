@@ -1,148 +1,110 @@
-let TEAMS = []; // Will be populated from CSV
+let eloData = {};
+let matchHistory = [];
+let teams = [];
+let tournaments = [];
+let cities = [];
 
-// =========================================================
-// 1. DATA INITIALIZATION
-// =========================================================
-async function initEngine() {
-    const response = await fetch('elos.csv');
-    const data = await response.text();
-    const rows = data.split('\n').slice(1);
-    
-    TEAMS = rows.filter(r => r.trim()).map((row, index) => {
-        const cols = row.split(',');
-        return {
-            name: cols[0].trim(),
-            elo: parseFloat(cols[1]),
-            elo_attack: parseFloat(cols[2]),
-            elo_defense: parseFloat(cols[3]),
-            rank: index + 1
-        };
+// INITIALIZE DATA
+async function init() {
+    // In a real competition, you'd fetch your CSVs here
+    // For now, we simulate the data load to ensure logic works
+    await loadCSVData();
+    populateSelects();
+}
+
+// THE HEURISTIC ALGORITHM (From your Image 2)
+function calculateHeuristics(teamA, teamB, currentTourn, currentCity, isNeutral) {
+    let stats = { a: 0, b: 0, logs: [] };
+
+    // 1. Head-to-Head (3pts per win)
+    const h2h = matchHistory.filter(m => (m.h === teamA && m.a === teamB) || (m.h === teamB && m.a === teamA));
+    h2h.forEach(m => {
+        const winner = m.hs > m.as ? m.h : (m.as > m.hs ? m.a : null);
+        if (winner === teamA) { stats.a += 3; } else if (winner === teamB) { stats.b += 3; }
     });
-    populateDropdowns();
-}
+    stats.logs.push(`Head-to-head (3pts per win): ${stats.a} vs ${stats.b}`);
 
-function populateDropdowns() {
-    const selA = document.getElementById('teamA');
-    const selB = document.getElementById('teamB');
-    TEAMS.forEach(team => {
-        selA.add(new Option(team.name, team.name));
-        selB.add(new Option(team.name, team.name));
+    // 2. Tournament History (2pts per win in same tournament)
+    const tournH = matchHistory.filter(m => m.tournament === currentTourn);
+    let tA = 0, tB = 0;
+    tournH.forEach(m => {
+        if (m.h === teamA && m.hs > m.as) tA += 2;
+        if (m.a === teamA && m.as > m.hs) tA += 2;
+        if (m.h === teamB && m.hs > m.as) tB += 2;
+        if (m.a === teamB && m.as > m.hs) tB += 2;
     });
-}
+    stats.a += tA; stats.b += tB;
+    stats.logs.push(`Tournament history (2pts per win): ${tA} vs ${tB}`);
 
-// =========================================================
-// 2. CORE ALGORITHMS (Poisson & Penalties)
-// =========================================================
-function simulateGoals(teamA, teamB) {
-    const lambdaBase = 1.35; 
-    // Complexity: Attack power minus opponent defense power
-    const attackAdvantage = teamA.elo_attack - teamB.elo_defense;
-    const lambda = lambdaBase * Math.pow(10, attackAdvantage / 1000); 
-
-    let k = 0, p = 1.0, L = Math.exp(-lambda);
-    do { k++; p *= Math.random(); } while (p > L);
-    return k - 1;
-}
-
-function simulatePenalties(team1, team2) {
-    let t1p = 0, t2p = 0;
-    const kick = (adv) => Math.random() < (0.7 + (adv / 3000));
-    for (let i = 0; i < 5; i++) {
-        if (kick(team1.elo_attack - team2.elo_defense)) t1p++;
-        if (kick(team2.elo_attack - team1.elo_defense)) t2p++;
-    }
-    while (t1p === t2p) { // Sudden death
-        if (kick(team1.elo_attack - team2.elo_defense)) t1p++;
-        if (kick(team2.elo_attack - team1.elo_defense)) t2p++;
-    }
-    return { t1p, t2p };
-}
-
-function simulateMatch(team1, team2, isKnockout = true) {
-    let s1 = simulateGoals(team1, team2);
-    let s2 = simulateGoals(team2, team1);
-    let winner = null, p1, p2;
-
-    if (s1 === s2 && isKnockout) {
-        const pens = simulatePenalties(team1, team2);
-        p1 = pens.t1p; p2 = pens.t2p;
-        winner = p1 > p2 ? team1 : team2;
+    // 3. Home Advantage (Team A as home if not neutral)
+    if (isNeutral === "no") {
+        stats.a += 2; // Standard bonus
+        stats.logs.push(`Home advantage (Team A): 2 vs 0`);
     } else {
-        if (s1 > s2) winner = team1;
-        else if (s2 > s1) winner = team2;
+        stats.logs.push(`Home advantage: 0 vs 0 (Neutral)`);
     }
 
-    return { team1, team2, s1, s2, p1, p2, winner };
+    return stats;
 }
 
-// =========================================================
-// 3. PAGE LOGIC
-// =========================================================
-function showScreen(screenId) {
-    document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
-    document.getElementById(screenId + 'Screen').style.display = 'block';
-}
+// THE POISSON ENGINE
+function runPoisson(teamA, teamB) {
+    // Logic: ExpGoals = (OffenseA / DefenseB) * Weight
+    const expA = (eloData[teamA].off / eloData[teamB].def) * 1.5;
+    const expB = (eloData[teamB].off / eloData[teamA].def) * 1.2;
 
-function handlePrediction() {
-    const tA = TEAMS.find(t => t.name === document.getElementById('teamA').value);
-    const tB = TEAMS.find(t => t.name === document.getElementById('teamB').value);
-    
-    let winsA = 0, winsB = 0, draws = 0;
-    const scores = new Map();
-
-    for (let i = 0; i < 10000; i++) {
-        const res = simulateMatch(tA, tB, false);
-        const line = `${res.s1}-${res.s2}`;
-        scores.set(line, (scores.get(line) || 0) + 1);
-        if (res.winner === tA) winsA++;
-        else if (res.winner === tB) winsB++;
-        else draws++;
-    }
-
-    renderPrediction(tA, tB, winsA, winsB, draws, scores);
-}
-
-function renderPrediction(tA, tB, wA, wB, d, scoreMap) {
-    document.getElementById('predictionResults').style.display = 'block';
-    document.getElementById('probA').innerHTML = `${tA.name}<br><strong>${(wA/100).toFixed(1)}%</strong>`;
-    document.getElementById('probDraw').innerHTML = `Draw<br><strong>${(d/100).toFixed(1)}%</strong>`;
-    document.getElementById('probB').innerHTML = `${tB.name}<br><strong>${(wB/100).toFixed(1)}%</strong>`;
-
-    const tbody = document.querySelector('#scoreTable tbody');
-    tbody.innerHTML = '';
-    [...scoreMap.entries()].sort((a,b) => b[1] - a[1]).slice(0,5).forEach(([score, count]) => {
-        const row = tbody.insertRow();
-        row.insertCell().textContent = score;
-        row.insertCell().textContent = count;
-        row.insertCell().textContent = (count/100).toFixed(2) + '%';
-    });
-}
-
-// 4. TOURNAMENT LOGIC
-function runFullSimulation() {
-    const viz = document.getElementById('bracketVisualization');
-    const log = document.getElementById('bracketRounds');
-    viz.innerHTML = ''; log.innerHTML = '';
-    
-    let currentTeams = [...TEAMS].sort((a,b) => a.rank - b.rank).slice(0, 16);
-    let round = 1;
-
-    while (currentTeams.length > 1) {
-        const nextRoundTeams = [];
-        let roundHtml = `<div class="round-col">`;
-        for (let i = 0; i < currentTeams.length; i += 2) {
-            const match = simulateMatch(currentTeams[i], currentTeams[i+1], true);
-            nextRoundTeams.push(match.winner);
-            roundHtml += `
-                <div class="bracket-match">
-                    <div class="${match.winner === match.team1 ? 'match-winner' : ''}">${match.team1.name}: ${match.s1}</div>
-                    <div class="${match.winner === match.team2 ? 'match-winner' : ''}">${match.team2.name}: ${match.s2}</div>
-                </div>`;
+    const probabilities = [];
+    for (let i = 0; i <= 5; i++) {
+        for (let j = 0; j <= 5; j++) {
+            const prob = (poissonProb(i, expA) * poissonProb(j, expB));
+            probabilities.push({ s1: i, s2: j, p: prob });
         }
-        viz.innerHTML += roundHtml + `</div>`;
-        currentTeams = nextRoundTeams;
-        round++;
     }
+    return { expA, expB, sorted: probabilities.sort((a, b) => b.p - a.p).slice(0, 5) };
 }
 
-initEngine();
+function poissonProb(k, lambda) {
+    return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k);
+}
+
+function factorial(n) {
+    return n <= 1 ? 1 : n * factorial(n - 1);
+}
+
+// SCREEN CONTROL
+function executeFullAnalysis() {
+    const tA = document.getElementById('teamA').value;
+    const tB = document.getElementById('teamB').value;
+    const tourn = document.getElementById('tournament').value;
+    const city = document.getElementById('city').value;
+    const neutral = document.getElementById('isNeutral').value;
+
+    const heuristic = calculateHeuristics(tA, tB, tourn, city, neutral);
+    const poisson = runPoisson(tA, tB);
+
+    // Render results to UI
+    document.getElementById('analysisOutput').style.display = 'block';
+    const hList = document.getElementById('heuristicList');
+    hList.innerHTML = heuristic.logs.map(l => `<li>${l}</li>`).join('');
+    
+    document.getElementById('heuristicTotal').innerHTML = `
+        <strong>Historical Totals:</strong> ${tA} Score: ${heuristic.a} | ${tB} Score: ${heuristic.b}
+    `;
+
+    const sList = document.getElementById('scoreLines');
+    sList.innerHTML = poisson.sorted.map(s => 
+        `<li>${tA} ${s.s1} - ${s.s2} ${tB} (${(s.p * 100).toFixed(2)}%)</li>`
+    ).join('');
+}
+
+// Navigation
+function openModule(id) {
+    document.getElementById('hubScreen').style.display = 'none';
+    document.getElementById(id + 'Module').style.display = 'block';
+}
+
+function goHome() {
+    location.reload(); // Simplest way to reset state
+}
+
+init();
