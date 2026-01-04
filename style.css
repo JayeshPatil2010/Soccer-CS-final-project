@@ -49,15 +49,6 @@ select {
     cursor: pointer;
 }
 
-.checkbox-container {
-    display: flex;
-    align-items: center;
-    font-size: 14px;
-    color: var(--apple-text);
-    cursor: pointer;
-    text-transform: none;
-}
-
 .button-group { display: flex; gap: 10px; margin-top: 10px; }
 
 button {
