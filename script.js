@@ -1,104 +1,148 @@
-let eloData = {};
-let teamsList = [];
+let TEAMS = []; // Will be populated from CSV
 
-// Initialize by loading your CSV files
-async function init() {
-    try {
-        const response = await fetch('elos.csv');
-        const text = await response.text();
-        parseEloCsv(text);
-        populateDropdowns();
-    } catch (err) {
-        console.error("Error loading CSVs. Make sure they are in the same folder.", err);
-    }
-}
-
-function parseEloCsv(csv) {
-    const lines = csv.split('\n');
-    lines.forEach((line, index) => {
-        if (index === 0 || !line.trim()) return; // Skip header
-        const columns = line.split(',');
-        if (columns.length < 6) return;
-
-        const teamName = columns[0].trim();
-        eloData[teamName] = {
-            overall: parseFloat(columns[1]),
-            offense: parseFloat(columns[2]),
-            defense: parseFloat(columns[3]),
-            homeAdv: parseFloat(columns[4]),
-            awayAdv: parseFloat(columns[5])
+// =========================================================
+// 1. DATA INITIALIZATION
+// =========================================================
+async function initEngine() {
+    const response = await fetch('elos.csv');
+    const data = await response.text();
+    const rows = data.split('\n').slice(1);
+    
+    TEAMS = rows.filter(r => r.trim()).map((row, index) => {
+        const cols = row.split(',');
+        return {
+            name: cols[0].trim(),
+            elo: parseFloat(cols[1]),
+            elo_attack: parseFloat(cols[2]),
+            elo_defense: parseFloat(cols[3]),
+            rank: index + 1
         };
-        teamsList.push(teamName);
     });
-    teamsList.sort();
+    populateDropdowns();
 }
 
 function populateDropdowns() {
     const selA = document.getElementById('teamA');
     const selB = document.getElementById('teamB');
-    teamsList.forEach(team => {
-        selA.add(new Option(team, team));
-        selB.add(new Option(team, team));
+    TEAMS.forEach(team => {
+        selA.add(new Option(team.name, team.name));
+        selB.add(new Option(team.name, team.name));
     });
 }
 
-async function runLiveSimulation() {
-    const teamA = document.getElementById('teamA').value;
-    const teamB = document.getElementById('teamB').value;
-    const log = document.getElementById('simLog');
-    const simArea = document.getElementById('simArea');
-    
-    if (teamA === teamB) return alert("Select two different teams!");
+// =========================================================
+// 2. CORE ALGORITHMS (Poisson & Penalties)
+// =========================================================
+function simulateGoals(teamA, teamB) {
+    const lambdaBase = 1.35; 
+    // Complexity: Attack power minus opponent defense power
+    const attackAdvantage = teamA.elo_attack - teamB.elo_defense;
+    const lambda = lambdaBase * Math.pow(10, attackAdvantage / 1000); 
 
-    simArea.style.display = 'block';
-    log.innerHTML = "<div>Match Kickoff!</div>";
-    let scoreA = 0, scoreB = 0;
+    let k = 0, p = 1.0, L = Math.exp(-lambda);
+    do { k++; p *= Math.random(); } while (p > L);
+    return k - 1;
+}
 
-    // Simulation settings based on your Java logic
-    const pGoalA = (eloData[teamA].offense / eloData[teamB].defense) * 0.025;
-    const pGoalB = (eloData[teamB].offense / eloData[teamA].defense) * 0.022;
-
-    for (let min = 1; min <= 90; min++) {
-        document.getElementById('simTime').innerText = min + "'";
-        let eventFound = false;
-
-        // Scoring Logic
-        if (Math.random() < pGoalA) {
-            scoreA++;
-            addLog(min, "GOAL", teamA, `${teamA} finds the back of the net!`, "goal");
-            eventFound = true;
-        } 
-        if (Math.random() < pGoalB) {
-            scoreB++;
-            addLog(min, "GOAL", teamB, `${teamB} scores a brilliant goal!`, "goal");
-            eventFound = true;
-        }
-
-        // Foul/Card Logic
-        if (Math.random() < 0.08) {
-            const roll = Math.random();
-            if (roll < 0.1) {
-                addLog(min, "RED CARD", "Ref", "Straight red card issued!", "red");
-            } else if (roll < 0.4) {
-                addLog(min, "YELLOW CARD", "Ref", "Yellow card for a hard tackle.", "yellow");
-            }
-        }
-
-        document.getElementById('simScore').innerText = `${teamA} ${scoreA} - ${scoreB} ${teamB}`;
-        
-        // This creates the "live" feeling. 100ms = 1 minute in-game
-        await new Promise(resolve => setTimeout(resolve, 100)); 
+function simulatePenalties(team1, team2) {
+    let t1p = 0, t2p = 0;
+    const kick = (adv) => Math.random() < (0.7 + (adv / 3000));
+    for (let i = 0; i < 5; i++) {
+        if (kick(team1.elo_attack - team2.elo_defense)) t1p++;
+        if (kick(team2.elo_attack - team1.elo_defense)) t2p++;
     }
-    log.innerHTML = `<div class="log-entry"><b>FT: ${teamA} ${scoreA} - ${scoreB} ${teamB}</b></div>` + log.innerHTML;
+    while (t1p === t2p) { // Sudden death
+        if (kick(team1.elo_attack - team2.elo_defense)) t1p++;
+        if (kick(team2.elo_attack - team1.elo_defense)) t2p++;
+    }
+    return { t1p, t2p };
 }
 
-function addLog(min, type, team, desc, cssClass) {
-    const log = document.getElementById('simLog');
-    const entry = document.createElement('div');
-    entry.className = `log-entry ${cssClass}`;
-    entry.innerHTML = `[${min}'] ${type}: ${desc}`;
-    log.insertBefore(entry, log.firstChild); // Newest events at top
+function simulateMatch(team1, team2, isKnockout = true) {
+    let s1 = simulateGoals(team1, team2);
+    let s2 = simulateGoals(team2, team1);
+    let winner = null, p1, p2;
+
+    if (s1 === s2 && isKnockout) {
+        const pens = simulatePenalties(team1, team2);
+        p1 = pens.t1p; p2 = pens.t2p;
+        winner = p1 > p2 ? team1 : team2;
+    } else {
+        if (s1 > s2) winner = team1;
+        else if (s2 > s1) winner = team2;
+    }
+
+    return { team1, team2, s1, s2, p1, p2, winner };
 }
 
-document.getElementById('simBtn').onclick = runLiveSimulation;
-init();
+// =========================================================
+// 3. PAGE LOGIC
+// =========================================================
+function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+    document.getElementById(screenId + 'Screen').style.display = 'block';
+}
+
+function handlePrediction() {
+    const tA = TEAMS.find(t => t.name === document.getElementById('teamA').value);
+    const tB = TEAMS.find(t => t.name === document.getElementById('teamB').value);
+    
+    let winsA = 0, winsB = 0, draws = 0;
+    const scores = new Map();
+
+    for (let i = 0; i < 10000; i++) {
+        const res = simulateMatch(tA, tB, false);
+        const line = `${res.s1}-${res.s2}`;
+        scores.set(line, (scores.get(line) || 0) + 1);
+        if (res.winner === tA) winsA++;
+        else if (res.winner === tB) winsB++;
+        else draws++;
+    }
+
+    renderPrediction(tA, tB, winsA, winsB, draws, scores);
+}
+
+function renderPrediction(tA, tB, wA, wB, d, scoreMap) {
+    document.getElementById('predictionResults').style.display = 'block';
+    document.getElementById('probA').innerHTML = `${tA.name}<br><strong>${(wA/100).toFixed(1)}%</strong>`;
+    document.getElementById('probDraw').innerHTML = `Draw<br><strong>${(d/100).toFixed(1)}%</strong>`;
+    document.getElementById('probB').innerHTML = `${tB.name}<br><strong>${(wB/100).toFixed(1)}%</strong>`;
+
+    const tbody = document.querySelector('#scoreTable tbody');
+    tbody.innerHTML = '';
+    [...scoreMap.entries()].sort((a,b) => b[1] - a[1]).slice(0,5).forEach(([score, count]) => {
+        const row = tbody.insertRow();
+        row.insertCell().textContent = score;
+        row.insertCell().textContent = count;
+        row.insertCell().textContent = (count/100).toFixed(2) + '%';
+    });
+}
+
+// 4. TOURNAMENT LOGIC
+function runFullSimulation() {
+    const viz = document.getElementById('bracketVisualization');
+    const log = document.getElementById('bracketRounds');
+    viz.innerHTML = ''; log.innerHTML = '';
+    
+    let currentTeams = [...TEAMS].sort((a,b) => a.rank - b.rank).slice(0, 16);
+    let round = 1;
+
+    while (currentTeams.length > 1) {
+        const nextRoundTeams = [];
+        let roundHtml = `<div class="round-col">`;
+        for (let i = 0; i < currentTeams.length; i += 2) {
+            const match = simulateMatch(currentTeams[i], currentTeams[i+1], true);
+            nextRoundTeams.push(match.winner);
+            roundHtml += `
+                <div class="bracket-match">
+                    <div class="${match.winner === match.team1 ? 'match-winner' : ''}">${match.team1.name}: ${match.s1}</div>
+                    <div class="${match.winner === match.team2 ? 'match-winner' : ''}">${match.team2.name}: ${match.s2}</div>
+                </div>`;
+        }
+        viz.innerHTML += roundHtml + `</div>`;
+        currentTeams = nextRoundTeams;
+        round++;
+    }
+}
+
+initEngine();
