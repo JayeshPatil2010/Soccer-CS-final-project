@@ -36,7 +36,6 @@ header h1 { font-size: 28px; font-weight: 700; margin: 0; letter-spacing: -0.5px
 
 .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
 .form-group { text-align: left; }
-.form-group.full { grid-column: span 2; }
 
 label { font-size: 11px; font-weight: 600; color: var(--apple-secondary); text-transform: uppercase; margin-bottom: 6px; display: block; padding-left: 4px; }
 
@@ -49,6 +48,7 @@ select, input {
     font-size: 15px;
     outline: none;
     box-sizing: border-box;
+    transition: all 0.2s ease;
 }
 
 select:focus, input:focus { border-color: var(--apple-blue); box-shadow: 0 0 0 3px rgba(0,122,255,0.1); }
