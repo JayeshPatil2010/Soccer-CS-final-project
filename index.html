@@ -2,109 +2,82 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>MATCH ENGINE v2.0 | Pro Edition</title>
+    <title>Match Predictor Pro v2.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
-    <div id="home-screen" class="hub-wrapper">
-        <div class="hub-container">
-            <h1>MATCH ENGINE <span>v2.0</span></h1>
-            <div class="hub-grid">
-                <button class="hub-card" onclick="openModule('predictor')">
-                    <span class="hub-icon">📈</span>
-                    <div class="hub-text">
-                        <h3>Predictor</h3>
-                        <p>Heuristic + Elo Analysis</p>
+<body class="bg-[#f5f5f7] p-6 lg:p-12">
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-10 flex justify-between items-end">
+            <div>
+                <h1 class="text-4xl font-extrabold tracking-tight text-[#1d1d1f]">Match Predictor</h1>
+                <p class="text-gray-500">Poisson Distribution Engine</p>
+            </div>
+            <span class="text-[10px] font-bold bg-gray-200 px-2 py-1 rounded">v2.0 - ACTIVE</span>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-4 space-y-6">
+                <div class="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-white shadow-sm">
+                    <h2 class="text-xs font-bold uppercase text-blue-600 mb-4 tracking-widest">1. Data Entry</h2>
+                    <div class="space-y-4">
+                        <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                            <label class="text-[10px] font-bold text-gray-400 block mb-1 uppercase">Results.csv</label>
+                            <input type="file" id="matchFile" class="text-xs w-full">
+                        </div>
+                        <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                            <label class="text-[10px] font-bold text-gray-400 block mb-1 uppercase">Elos.csv</label>
+                            <input type="file" id="eloFile" class="text-xs w-full">
+                        </div>
+                        <button onclick="processFiles()" class="w-full bg-[#0071e3] text-white font-bold py-3 rounded-xl hover:bg-[#0077ed] shadow-lg shadow-blue-100 transition-all">Connect Datasets</button>
                     </div>
-                </button>
-                <button class="hub-card" onclick="openModule('simulator')">
-                    <span class="hub-icon">🎮</span>
-                    <div class="hub-text">
-                        <h3>Live Sim</h3>
-                        <p>Minute-by-Minute Engine</p>
+                </div>
+
+                <div id="setupSection" class="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-white shadow-sm opacity-30 pointer-events-none transition-all duration-700">
+                    <h2 class="text-xs font-bold uppercase text-blue-600 mb-4 tracking-widest">2. Match Config</h2>
+                    <div class="space-y-3">
+                        <select id="teamA" class="w-full p-3 border rounded-xl bg-white focus:ring-2 focus:ring-blue-400 outline-none appearance-none"></select>
+                        <select id="teamB" class="w-full p-3 border rounded-xl bg-white focus:ring-2 focus:ring-blue-400 outline-none appearance-none"></select>
+                        <select id="tournament" class="w-full p-3 border rounded-xl bg-white focus:ring-2 focus:ring-blue-400 outline-none appearance-none"></select>
+                        <label class="flex items-center text-sm font-medium px-1">
+                            <input type="checkbox" id="neutral" class="w-4 h-4 mr-2 accent-blue-600"> Neutral Venue
+                        </label>
+                        <button onclick="generatePrediction()" class="w-full bg-black text-white font-bold py-4 rounded-xl hover:opacity-80 active:scale-95 transition-all">Run Engine</button>
                     </div>
-                </button>
+                </div>
+                
+                <div class="bg-[#1c1c1e] p-4 rounded-2xl border border-white/10 shadow-2xl">
+                    <div id="debug" class="font-mono text-[10px] text-[#32d74b] h-32 overflow-y-auto custom-scrollbar uppercase">
+                        > v2.0 Initialized...<br>> Ready for CSV upload.
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-8">
+                <div id="welcomeState" class="h-full min-h-[500px] flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-[3rem] text-gray-400">
+                    <p class="font-medium">Awaiting Data Connection...</p>
+                </div>
+
+                <div id="resultState" class="hidden animate-in fade-in duration-700">
+                    <div class="bg-white p-12 rounded-[3rem] text-center shadow-sm border-t-[12px] border-[#0071e3] mb-8">
+                        <p class="text-xs font-black text-gray-300 uppercase tracking-[0.3em] mb-4">Recommended Winner</p>
+                        <h2 id="finalPickText" class="text-6xl font-black text-[#0071e3]">---</h2>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="bg-white/70 backdrop-blur-xl p-8 rounded-[3rem] shadow-sm">
+                            <h3 class="font-bold text-xl mb-6">📊 Probabilities</h3>
+                            <div id="scorelineOutput" class="space-y-3"></div>
+                        </div>
+                        <div class="bg-white/70 backdrop-blur-xl p-8 rounded-[3rem] shadow-sm">
+                            <h3 class="font-bold text-xl mb-6">📜 History</h3>
+                            <div id="historicalOutput" class="space-y-2 text-sm text-gray-500 font-medium"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-
-    <div id="predictor-screen" class="module-view" style="display:none;">
-        <nav class="module-nav">
-            <button class="back-link" onclick="exitToHub()">← Return to Hub</button>
-            <span class="badge">Predictor Mode</span>
-        </nav>
-
-        <div class="predictor-layout">
-            <aside class="config-panel">
-                <h3>Match Setup</h3>
-                <div class="input-stack">
-                    <label>Team A (Home)</label>
-                    <select id="teamASelect"></select>
-                    
-                    <label>Team B (Away)</label>
-                    <select id="teamBSelect"></select>
-                    
-                    <label>Tournament Context</label>
-                    <select id="tournamentSelect"></select>
-                    
-                    <label>City / Venue</label>
-                    <select id="citySelect"></select>
-                    
-                    <label>Neutral Ground?</label>
-                    <select id="isNeutralSelect">
-                        <option value="No">No (Home Advantage)</option>
-                        <option value="Yes">Yes (Neutral)</option>
-                    </select>
-                </div>
-                <button class="primary-btn" onclick="startAnalysis()">Run Engine</button>
-            </aside>
-
-            <main class="analysis-panel" id="analysisOutput" style="opacity:0;">
-                <div class="results-card">
-                    <h3>HISTORICAL REASONING BREAKDOWN</h3>
-                    <div id="heuristicLog" class="log-output"></div>
-                    <div class="totals-row" id="heuristicTotals"></div>
-                </div>
-
-                <div class="results-card elo-card">
-                    <h3>ELO-BASED PREDICTION & SCORELINE</h3>
-                    <div id="eloBreakdown" class="elo-grid"></div>
-                    <div id="poissonMath" class="math-banner"></div>
-                    <div id="probDisplay" class="prob-visualization"></div>
-                    <div class="score-predictions">
-                        <h4>Top Probability Scorelines:</h4>
-                        <ul id="scorelineList"></ul>
-                    </div>
-                    <div id="finalVerdict" class="verdict-banner"></div>
-                </div>
-            </main>
-        </div>
-    </div>
-
-    <div id="simulator-screen" class="module-view" style="display:none;">
-        <nav class="module-nav">
-            <button class="back-link" onclick="exitToHub()">← Return to Hub</button>
-            <span class="badge live">Live Simulation</span>
-        </nav>
-        <div class="sim-wrapper">
-            <div class="scoreboard-pro">
-                <div class="team-block">
-                    <h2 id="simHomeName">HOME</h2>
-                    <div class="score-digit" id="simHomeScore">0</div>
-                </div>
-                <div class="clock-block">
-                    <div id="simClock">00:00</div>
-                    <div class="status">MATCH IN PROGRESS</div>
-                </div>
-                <div class="team-block">
-                    <div class="score-digit" id="simAwayScore">0</div>
-                    <h2 id="simAwayName">AWAY</h2>
-                </div>
-            </div>
-            <div id="simEvents" class="event-feed"></div>
-        </div>
-    </div>
-
-    <script src="script.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
