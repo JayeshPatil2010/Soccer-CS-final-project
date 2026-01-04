@@ -2,80 +2,106 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Elite Match Engine | Analytics Pro</title>
+    <title>MATCH ENGINE v2.0 | Pro Edition</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="hubScreen" class="full-screen">
-        <div class="glass-panel">
-            <h1>MATCH ENGINE <span class="highlight">v2.0</span></h1>
+    <div id="home-screen" class="hub-wrapper">
+        <div class="hub-container">
+            <h1>MATCH ENGINE <span>v2.0</span></h1>
             <div class="hub-grid">
-                <button class="mega-btn" onclick="openModule('predictor')">
-                    <div class="icon">📈</div>
-                    <h3>Predictor</h3>
-                    <p>Heuristic + Elo Analysis</p>
+                <button class="hub-card" onclick="openModule('predictor')">
+                    <span class="hub-icon">📈</span>
+                    <div class="hub-text">
+                        <h3>Predictor</h3>
+                        <p>Heuristic + Elo Analysis</p>
+                    </div>
                 </button>
-                <button class="mega-btn" onclick="openModule('simulator')">
-                    <div class="icon">🎮</div>
-                    <h3>Live Sim</h3>
-                    <p>Minute-by-Minute Engine</p>
+                <button class="hub-card" onclick="openModule('simulator')">
+                    <span class="hub-icon">🎮</span>
+                    <div class="hub-text">
+                        <h3>Live Sim</h3>
+                        <p>Minute-by-Minute Engine</p>
+                    </div>
                 </button>
             </div>
         </div>
     </div>
 
-    <div id="predictorModule" class="app-module" style="display:none;">
-        <nav class="top-nav">
-            <button onclick="goHome()">← Back to Hub</button>
-            <h2>Match Setup & Heuristics</h2>
+    <div id="predictor-screen" class="module-view" style="display:none;">
+        <nav class="module-nav">
+            <button class="back-link" onclick="exitToHub()">← Return to Hub</button>
+            <span class="badge">Predictor Mode</span>
         </nav>
-        
-        <div class="setup-grid">
-            <div class="card">
-                <div class="input-row">
-                    <label>Team A:</label><select id="teamA"></select>
-                    <label>Team B:</label><select id="teamB"></select>
-                </div>
-                <div class="input-row">
-                    <label>Tournament:</label><select id="tournament"></select>
-                    <label>City:</label><select id="city"></select>
-                </div>
-                <div class="input-row">
-                    <label>Neutral:</label>
-                    <select id="isNeutral">
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
+
+        <div class="predictor-layout">
+            <aside class="config-panel">
+                <h3>Match Setup</h3>
+                <div class="input-stack">
+                    <label>Team A (Home)</label>
+                    <select id="teamASelect"></select>
+                    
+                    <label>Team B (Away)</label>
+                    <select id="teamBSelect"></select>
+                    
+                    <label>Tournament Context</label>
+                    <select id="tournamentSelect"></select>
+                    
+                    <label>City / Venue</label>
+                    <select id="citySelect"></select>
+                    
+                    <label>Neutral Ground?</label>
+                    <select id="isNeutralSelect">
+                        <option value="No">No (Home Advantage)</option>
+                        <option value="Yes">Yes (Neutral)</option>
                     </select>
                 </div>
-                <button class="action-btn" onclick="executeFullAnalysis()">PROCEED WITH PREDICTION</button>
-            </div>
+                <button class="primary-btn" onclick="startAnalysis()">Run Engine</button>
+            </aside>
 
-            <div id="analysisOutput" class="card result-card" style="display:none;">
-                <div class="heuristic-box">
+            <main class="analysis-panel" id="analysisOutput" style="opacity:0;">
+                <div class="results-card">
                     <h3>HISTORICAL REASONING BREAKDOWN</h3>
-                    <ul id="heuristicList"></ul>
-                    <div class="total-bar" id="heuristicTotal"></div>
+                    <div id="heuristicLog" class="log-output"></div>
+                    <div class="totals-row" id="heuristicTotals"></div>
                 </div>
-                <hr>
-                <div class="elo-box">
+
+                <div class="results-card elo-card">
                     <h3>ELO-BASED PREDICTION & SCORELINE</h3>
-                    <div id="eloStats"></div>
-                    <div class="prob-row" id="probDisplay"></div>
-                    <div class="top-scores">
-                        <h4>Top Predicted Scorelines:</h4>
-                        <ol id="scoreLines"></ol>
+                    <div id="eloBreakdown" class="elo-grid"></div>
+                    <div id="poissonMath" class="math-banner"></div>
+                    <div id="probDisplay" class="prob-visualization"></div>
+                    <div class="score-predictions">
+                        <h4>Top Probability Scorelines:</h4>
+                        <ul id="scorelineList"></ul>
                     </div>
+                    <div id="finalVerdict" class="verdict-banner"></div>
                 </div>
-            </div>
+            </main>
         </div>
     </div>
 
-    <div id="simulatorModule" class="app-module" style="display:none;">
-        <nav class="top-nav"><button onclick="goHome()">← Back to Hub</button></nav>
-        <div class="sim-container">
-            <div id="simBoard" class="scoreboard">0 - 0</div>
-            <div id="simClock">00:00</div>
-            <div id="simLog" class="log-area"></div>
+    <div id="simulator-screen" class="module-view" style="display:none;">
+        <nav class="module-nav">
+            <button class="back-link" onclick="exitToHub()">← Return to Hub</button>
+            <span class="badge live">Live Simulation</span>
+        </nav>
+        <div class="sim-wrapper">
+            <div class="scoreboard-pro">
+                <div class="team-block">
+                    <h2 id="simHomeName">HOME</h2>
+                    <div class="score-digit" id="simHomeScore">0</div>
+                </div>
+                <div class="clock-block">
+                    <div id="simClock">00:00</div>
+                    <div class="status">MATCH IN PROGRESS</div>
+                </div>
+                <div class="team-block">
+                    <div class="score-digit" id="simAwayScore">0</div>
+                    <h2 id="simAwayName">AWAY</h2>
+                </div>
+            </div>
+            <div id="simEvents" class="event-feed"></div>
         </div>
     </div>
 
