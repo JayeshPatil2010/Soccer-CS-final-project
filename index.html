@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>International Soccer Predictor</title>
+    <title>International Soccer Predictor Pro</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 </head>
@@ -11,8 +11,8 @@
 
     <div class="glass-container">
         <header>
-            <h1>Predictor</h1>
-            <p class="subtitle">International Match Engine</p>
+            <h1>Predictor Pro</h1>
+            <p class="subtitle">Data-Driven International Analysis</p>
         </header>
         
         <div class="input-grid">
@@ -28,34 +28,54 @@
 
             <div class="form-group">
                 <label>Tournament</label>
-                <input type="text" id="tournament" placeholder="e.g. World Cup">
+                <select id="tournament"><option>Select Tournament</option></select>
             </div>
 
             <div class="form-group">
                 <label>City</label>
-                <input type="text" id="city" placeholder="e.g. London">
+                <select id="city"><option>Select City</option></select>
+            </div>
+            
+            <div class="form-group full">
+                <label class="checkbox-container">
+                    <input type="checkbox" id="isNeutral">
+                    <span class="checkmark"></span>
+                    Played on Neutral Ground?
+                </label>
             </div>
         </div>
 
-        <button id="predictBtn" onclick="predictMatch()">Run Engine</button>
+        <button id="predictBtn" onclick="predictMatch()">Analyze Matchup</button>
 
         <div id="resultsArea" class="hidden">
             <div class="divider"></div>
             <div class="prediction-card">
-                <div id="matchHeading" class="match-name">Team A vs Team B</div>
+                <div id="matchHeading" class="match-name">---</div>
                 <div class="score-container">
                     <span id="homeScore" class="score">0</span>
                     <span class="dash">-</span>
                     <span id="awayScore" class="score">0</span>
                 </div>
-                <div class="stats-row">
-                    <div class="stat-item">
-                        <span class="stat-label">Win Probability</span>
-                        <span id="winProb" class="stat-value">0%</span>
+                
+                <div class="probability-grid">
+                    <div class="prob-item">
+                        <span class="p-label">Home Win</span>
+                        <span id="homeWinP" class="p-val">0%</span>
+                    </div>
+                    <div class="prob-item">
+                        <span class="p-label">Draw</span>
+                        <span id="drawP" class="p-val">0%</span>
+                    </div>
+                    <div class="prob-item">
+                        <span class="p-label">Away Win</span>
+                        <span id="awayWinP" class="p-val">0%</span>
                     </div>
                 </div>
-                <div class="progress-bg">
-                    <div id="probBar" class="progress-fill"></div>
+                
+                <div class="multi-progress">
+                    <div id="barHome" class="bar home-bg"></div>
+                    <div id="barDraw" class="bar draw-bg"></div>
+                    <div id="barAway" class="bar away-bg"></div>
                 </div>
             </div>
         </div>
