@@ -1,6 +1,6 @@
 /**
- * International Soccer Predictor Pro
- * Source: JayeshPatil2010/Soccer-CS-final-project
+ * Predictor Pro Engine
+ * Balanced Power Scaling & Normalized Probabilities
  */
 
 const BASE_URL = 'https://raw.githubusercontent.com/JayeshPatil2010/Soccer-CS-final-project/main/';
@@ -9,9 +9,8 @@ const RESULTS_CSV_URL = BASE_URL + 'results.csv';
 
 let eloDB = [];
 let resultsDB = [];
-let globalAvg = 1.35; // Calibrated dynamically
+let globalAvg = 1.35;
 
-// Initial Load
 window.addEventListener('DOMContentLoaded', () => {
     loadAllData();
 });
@@ -67,7 +66,21 @@ function initDropdowns() {
     fill(home, teams); fill(away, teams); fill(tourney, tourneys); fill(city, cities);
 }
 
-// Math core
+// --- RANDOMIZER ---
+function randomizeMatch() {
+    const selects = ['homeTeam', 'awayTeam', 'tournament', 'city'];
+    selects.forEach(id => {
+        const el = document.getElementById(id);
+        const options = el.options;
+        if (options.length > 0) {
+            el.selectedIndex = Math.floor(Math.random() * options.length);
+        }
+    });
+    document.getElementById('isNeutral').checked = Math.random() > 0.5;
+    predictMatch();
+}
+
+// --- MATH CORE ---
 function factorial(n) {
     if (n <= 1) return 1;
     let res = 1;
@@ -76,26 +89,14 @@ function factorial(n) {
 }
 
 function poisson(k, lambda) {
+    if (lambda <= 0) return k === 0 ? 1 : 0;
     return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k);
 }
 
-// Randomizer
-function randomizeMatch() {
-    const selects = ['homeTeam', 'awayTeam', 'tournament', 'city'];
-    selects.forEach(id => {
-        const el = document.getElementById(id);
-        const items = el.getElementsByTagName('option');
-        el.selectedIndex = Math.floor(Math.random() * items.length);
-    });
-    document.getElementById('isNeutral').checked = Math.random() > 0.5;
-    predictMatch();
-}
-
-// Prediction Logic
+// --- PREDICTION ENGINE ---
 function predictMatch() {
     const teamA = document.getElementById('homeTeam').value;
     const teamB = document.getElementById('awayTeam').value;
-    const selCity = document.getElementById('city').value;
     const isNeutral = document.getElementById('isNeutral').checked;
 
     const eloA = eloDB.find(t => t.team === teamA);
@@ -103,30 +104,32 @@ function predictMatch() {
 
     if (!eloA || !eloB) return;
 
-    // Power Scaling: Ratio raised to power of 8 to increase gap between favorites and underdogs
-    let lambdaA = Math.pow(parseFloat(eloA.offensive_elo) / parseFloat(eloB.defensive_elo), 8) * globalAvg;
-    let lambdaB = Math.pow(parseFloat(eloB.offensive_elo) / parseFloat(eloA.defensive_elo), 8) * globalAvg;
+    // Balanced Scaling: Power of 3.5 favors the strong without exploding scores
+    let lambdaA = Math.pow(parseFloat(eloA.offensive_elo) / parseFloat(eloB.defensive_elo), 3.5) * globalAvg;
+    let lambdaB = Math.pow(parseFloat(eloB.offensive_elo) / parseFloat(eloA.defensive_elo), 3.5) * globalAvg;
 
     if (!isNeutral) {
-        // Adjust based on specific home/away elo performance
-        lambdaA *= (parseFloat(eloA.home_elo) / 1500) * 1.12; // 12% Home Boost
-        lambdaB *= (parseFloat(eloB.away_elo) / 1500) * 0.95; // Travel penalty
+        lambdaA *= (parseFloat(eloA.home_elo) / 1500) * 1.10;
+        lambdaB *= (parseFloat(eloB.away_elo) / 1500) * 0.95;
     }
 
-    // Adjust based on Head-to-Head History in results.csv
+    // Historical H2H Boost
     resultsDB.forEach(m => {
         if ((m.home_team === teamA && m.away_team === teamB) || (m.home_team === teamB && m.away_team === teamA)) {
             const teamAWon = (m.home_team === teamA && m.home_score > m.away_score) || (m.away_team === teamA && m.away_score > m.home_score);
-            if (teamAWon) lambdaA *= 1.05; else lambdaB *= 1.05;
+            if (teamAWon) lambdaA *= 1.03; else lambdaB *= 1.03;
         }
     });
+
+    // Final Goal Caps to keep scores realistic
+    lambdaA = Math.min(lambdaA, 4.0);
+    lambdaB = Math.min(lambdaB, 4.0);
 
     let rawWinA = 0, rawDraw = 0, rawWinB = 0;
     let maxProb = -1, finalH = 0, finalA = 0;
 
-    // Simulate scorelines up to 12 goals
-    for (let h = 0; h <= 12; h++) {
-        for (let a = 0; a <= 12; a++) {
+    for (let h = 0; h <= 10; h++) {
+        for (let a = 0; a <= 10; a++) {
             let prob = poisson(h, lambdaA) * poisson(a, lambdaB);
             if (h > a) rawWinA += prob;
             else if (h === a) rawDraw += prob;
@@ -136,7 +139,6 @@ function predictMatch() {
         }
     }
 
-    // Normalization logic: Stretch percentages to total 100%
     const total = rawWinA + rawDraw + rawWinB;
     renderResults(teamA, teamB, finalH, finalA, rawWinA/total, rawDraw/total, rawWinB/total);
 }
