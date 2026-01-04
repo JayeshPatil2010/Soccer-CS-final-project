@@ -3,38 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Football Predictor & Sim</title>
+    <title>AnalyticsPro | Football Simulation Engine</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>⚽ Match Simulator Pro</h1>
-        
-        <div class="card">
-            <div class="grid-form">
-                <div class="field">
-                    <label>Home Team</label>
-                    <select id="teamA"></select>
-                </div>
-                <div class="field">
-                    <label>Away Team</label>
-                    <select id="teamB"></select>
-                </div>
-            </div>
-            <div class="actions">
-                <button id="predictBtn" class="btn-primary">Calculate Odds</button>
-                <button id="simBtn" class="btn-secondary">Start Live Sim</button>
-            </div>
-        </div>
+    <div class="app-wrapper">
+        <nav class="sidebar">
+            <div class="logo">⚽ AnalyticsPro</div>
+            <button class="nav-btn active" onclick="showScreen('home')">Dashboard</button>
+            <button class="nav-btn" onclick="showScreen('prediction')">Match Predictor</button>
+            <button class="nav-btn" onclick="showScreen('bracket')">Tournament Sim</button>
+        </nav>
 
-        <div id="simArea" class="card sim-card" style="display:none;">
-            <div class="sim-header">
-                <h2 id="simScore">Team A 0 - 0 Team B</h2>
-                <div id="simTime">0'</div>
-            </div>
-            <div id="simLog" class="sim-log">
+        <main class="content-area">
+            <section id="homeScreen" class="screen">
+                <div class="hero">
+                    <h1>Welcome to the Engine</h1>
+                    <p>Select a module from the sidebar to begin analyzing football data.</p>
                 </div>
-        </div>
+            </section>
+
+            <section id="predictionScreen" class="screen" style="display:none;">
+                <div class="card">
+                    <h2>Match Predictor (10,000 Sims)</h2>
+                    <div class="form-grid">
+                        <select id="teamA"></select>
+                        <span class="vs">VS</span>
+                        <select id="teamB"></select>
+                    </div>
+                    <button class="btn-primary" onclick="handlePrediction()">Run Analysis</button>
+                    
+                    <div id="predictionResults" class="results-panel" style="display:none;">
+                        <div id="resultText" class="favored-text"></div>
+                        <div class="prob-bar-container">
+                            <div id="probA" class="prob-box"></div>
+                            <div id="probDraw" class="prob-box"></div>
+                            <div id="probB" class="prob-box"></div>
+                        </div>
+                        <h3>Top Likely Scorelines</h3>
+                        <table id="scoreTable">
+                            <thead><tr><th>Score</th><th>Occurrences</th><th>Probability</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="bracketScreen" class="screen" style="display:none;">
+                <div class="card">
+                    <h2>Tournament Bracket Simulation</h2>
+                    <button class="btn-primary" onclick="runFullSimulation()">Generate & Run Tournament</button>
+                    <div class="bracket-container">
+                        <div id="bracketVisualization" class="bracket-grid"></div>
+                        <div id="bracketRounds" class="bracket-log"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
     <script src="script.js"></script>
 </body>
