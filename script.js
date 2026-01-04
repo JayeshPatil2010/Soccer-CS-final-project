@@ -1,116 +1,121 @@
-let TEAMS = {};
-let HISTORY = [];
+let matches = [];
+let eloMap = new Map();
 
-// 1. DATA BOOTSTRAPPING
-async function initialize() {
+function logDebug(msg, isError = false) {
+    const el = document.getElementById('debug');
+    const color = isError ? "#ff453a" : "#32d74b";
+    el.innerHTML += `<br><span style="color: ${color}">> ${msg}</span>`;
+    el.scrollTop = el.scrollHeight;
+}
+
+async function processFiles() {
+    const mFile = document.getElementById('matchFile').files[0];
+    const eFile = document.getElementById('eloFile').files[0];
+    
+    if (!mFile || !eFile) {
+        logDebug("MISSING FILES", true);
+        return;
+    }
+
     try {
-        const [eloCSV, resultsCSV] = await Promise.all([
-            fetch('elos.csv').then(r => r.text()),
-            fetch('results.csv').then(r => r.text())
-        ]);
-        
-        parseElo(eloCSV);
-        parseResults(resultsCSV);
-        populateMenus();
-    } catch (err) {
-        console.error("Data Load Error. Ensure elos.csv and results.csv are present.");
+        matches = await parseCSV(mFile);
+        const eloData = await parseCSV(eFile);
+
+        eloMap.clear();
+        eloData.forEach(row => {
+            if (row.length >= 4) {
+                const team = row[0].trim().toLowerCase();
+                eloMap.set(team, {
+                    off: parseFloat(row[2]) || 1500,
+                    def: parseFloat(row[3]) || 1500,
+                    home: parseFloat(row[4]) || 1500,
+                    away: parseFloat(row[5]) || 1500,
+                    overall: parseFloat(row[1]) || 1500
+                });
+            }
+        });
+
+        logDebug(`MAPPING COMPLETE: ${eloMap.size} TEAMS`);
+        populateDropdowns();
+        document.getElementById('setupSection').classList.remove('opacity-30', 'pointer-events-none');
+    } catch (e) {
+        logDebug("PARSING ERROR", true);
     }
 }
 
-function parseElo(data) {
-    data.split('\n').slice(1).forEach(row => {
-        const c = row.split(',');
-        if (c.length < 6) return;
-        TEAMS[c[0].trim()] = {
-            overall: +c[1], off: +c[2], def: +c[3], home: +c[4], away: +c[5]
+function parseCSV(file) {
+    return new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const lines = e.target.result.split('\n').filter(l => l.trim());
+            resolve(lines.map(line => line.split(',').map(c => c.replace(/"/g, '').trim())));
         };
+        reader.readAsText(file);
     });
 }
 
-function parseResults(data) {
-    data.split('\n').slice(1).forEach(row => {
-        const c = row.split(',');
-        if (c.length < 7) return;
-        HISTORY.push({ h: c[1], a: c[2], hs: +c[3], as: +c[4], tourn: c[5], city: c[6] });
-    });
-}
-
-function populateMenus() {
-    const teamNames = Object.keys(TEAMS).sort();
-    const tourns = [...new Set(HISTORY.map(m => m.tourn))].sort();
-    const cities = [...new Set(HISTORY.map(m => m.city))].sort();
-
-    const tA = document.getElementById('teamASelect');
-    const tB = document.getElementById('teamBSelect');
-    const trn = document.getElementById('tournamentSelect');
-    const cty = document.getElementById('citySelect');
-
-    teamNames.forEach(n => { tA.add(new Option(n, n)); tB.add(new Option(n, n)); });
-    tourns.forEach(t => trn.add(new Option(t, t)));
-    cities.forEach(c => cty.add(new Option(c, c)));
-}
-
-// 2. HEURISTIC & POISSON LOGIC (From Image 2)
-function startAnalysis() {
-    const tA = document.getElementById('teamASelect').value;
-    const tB = document.getElementById('teamBSelect').value;
-    const tourn = document.getElementById('tournamentSelect').value;
-    const city = document.getElementById('citySelect').value;
-    const neutral = document.getElementById('isNeutralSelect').value;
-
-    let ptsA = 0, ptsB = 0;
-    let logHTML = "";
-
-    // A. H2H (3pts per win)
-    const matches = HISTORY.filter(m => (m.h === tA && m.a === tB) || (m.h === tB && m.a === tA));
-    let winA = 0, winB = 0;
+function populateDropdowns() {
+    const teams = new Set();
+    const tours = new Set();
     matches.forEach(m => {
-        const winner = m.hs > m.as ? m.h : (m.as > m.hs ? m.a : null);
-        if (winner === tA) winA++; if (winner === tB) winB++;
+        if(m[1]) teams.add(m[1]);
+        if(m[2]) teams.add(m[2]);
+        if(m[5]) tours.add(m[5]);
     });
-    ptsA += (winA * 3); ptsB += (winB * 3);
-    logHTML += `Head-to-head (3pts per historical win) : ${winA*3} vs ${winB*3}<br>`;
+    const fill = (id, list) => {
+        document.getElementById(id).innerHTML = list.map(i => `<option value="${i}">${i}</option>`).join('');
+    };
+    fill('teamA', Array.from(teams).sort());
+    fill('teamB', Array.from(teams).sort());
+    fill('tournament', Array.from(tours).sort());
+}
 
-    // B. Tournament History (2pts)
-    const trnWinsA = HISTORY.filter(m => m.tourn === tourn && ((m.h === tA && m.hs > m.as) || (m.a === tA && m.as > m.hs))).length;
-    const trnWinsB = HISTORY.filter(m => m.tourn === tourn && ((m.h === tB && m.hs > m.as) || (m.a === tB && m.as > m.hs))).length;
-    ptsA += (trnWinsA * 2); ptsB += (trnWinsB * 2);
-    logHTML += `Tournament history (2pts per win in ${tourn}) : ${trnWinsA*2} vs ${trnWinsB*2}<br>`;
+function factorial(n) { return n <= 1 ? 1 : n * factorial(n - 1); }
+function poisson(k, lambda) { return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k); }
 
-    // C. City Influence (1pt)
-    const ctyWinsA = HISTORY.filter(m => m.city === city && ((m.h === tA && m.hs > m.as) || (m.a === tA && m.as > m.hs))).length;
-    const ctyWinsB = HISTORY.filter(m => m.city === city && ((m.h === tB && m.hs > m.as) || (m.a === tB && m.as > m.hs))).length;
-    ptsA += ctyWinsA; ptsB += ctyWinsB;
-    logHTML += `City influence (1pt per win in ${city}) : ${ctyWinsA} vs ${ctyWinsB}<br>`;
+function generatePrediction() {
+    const tA = document.getElementById('teamA').value;
+    const tB = document.getElementById('teamB').value;
+    const tourney = document.getElementById('tournament').value;
+    const isNeutral = document.getElementById('neutral').checked;
 
-    // D. Home Advantage
-    if (neutral === "No") { ptsA += 2; logHTML += `Home advantage (Team A as home) : 2 vs 0<br>`; }
+    const eA = eloMap.get(tA.toLowerCase()) || { off: 1500, def: 1500, home: 1500, away: 1500, overall: 1500 };
+    const eB = eloMap.get(tB.toLowerCase()) || { off: 1500, def: 1500, home: 1500, away: 1500, overall: 1500 };
 
-    // E. Poisson Simulation
-    const eloA = TEAMS[tA], eloB = TEAMS[tB];
-    const expA = (eloA.off / eloB.def) * 1.25;
-    const expB = (eloB.off / eloA.def) * 1.10;
+    logDebug(`FETCH: ${tA} OFF(${eA.off}) | ${tB} DEF(${eB.def})`);
 
-    // Render Results
-    document.getElementById('analysisOutput').style.opacity = 1;
-    document.getElementById('heuristicLog').innerHTML = logHTML;
-    document.getElementById('heuristicTotals').innerHTML = `${tA} score: ${ptsA} | ${tB} score: ${ptsB}`;
+    const baseXG = 1.2;
+    let hA = 1.0, hB = 1.0;
+    if (!isNeutral) {
+        hA += (eA.home - eA.overall) * 0.0015;
+        hB += (eB.away - eB.overall) * 0.0015;
+    }
+
+    const lambdaA = Math.max(0.01, baseXG * Math.pow(10, (eA.off - eB.def) / 400) * hA);
+    const lambdaB = Math.max(0.01, baseXG * Math.pow(10, (eB.off - eA.def) / 400) * hB);
+
+    let scores = [];
+    for (let a = 0; a <= 6; a++) {
+        for (let b = 0; b <= 6; b++) {
+            scores.push({ s: `${a} - ${b}`, p: poisson(a, lambdaA) * poisson(b, lambdaB) });
+        }
+    }
+    scores.sort((x, y) => y.p - x.p);
+
+    document.getElementById('welcomeState').classList.add('hidden');
+    document.getElementById('resultState').classList.remove('hidden');
+    document.getElementById('finalPickText').innerText = lambdaA > lambdaB ? tA : tB;
     
-    // Final Pick
-    const winner = ptsA > ptsB ? tA : (ptsB > ptsA ? tB : "DRAW / TOO CLOSE");
-    document.getElementById('finalVerdict').innerText = `FINAL PICK: ${winner}`;
-}
+    document.getElementById('scorelineOutput').innerHTML = scores.slice(0, 5).map(s => 
+        `<div class="flex justify-between p-4 bg-[#f5f5f7] rounded-2xl font-bold text-gray-700">
+            <span>${s.s}</span>
+            <span class="text-blue-600">${(s.p * 100).toFixed(1)}%</span>
+        </div>`).join('');
 
-// 3. UI CONTROLS
-function openModule(type) {
-    document.getElementById('home-screen').style.display = 'none';
-    document.getElementById(type + '-screen').style.display = 'block';
+    document.getElementById('historicalOutput').innerHTML = `
+        <p>Current Match: ${tA} vs ${tB}</p>
+        <p>Tournament: ${tourney}</p>
+        <p>Venue: ${isNeutral ? 'Neutral Ground' : 'Home Field Advantage'}</p>
+        <p class="mt-4 pt-4 border-t border-gray-100 text-[10px] text-gray-400">POISSON LAMBDA: ${lambdaA.toFixed(2)} vs ${lambdaB.toFixed(2)}</p>
+    `;
 }
-
-function exitToHub() {
-    document.getElementById('home-screen').style.display = 'flex';
-    document.getElementById('predictor-screen').style.display = 'none';
-    document.getElementById('simulator-screen').style.display = 'none';
-}
-
-initialize();
