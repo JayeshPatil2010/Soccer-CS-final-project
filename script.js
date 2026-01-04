@@ -1,99 +1,56 @@
-/**
- * Predictor Pro Engine
- * Balanced Power Scaling & Normalized Probabilities
- */
-
 const BASE_URL = 'https://raw.githubusercontent.com/JayeshPatil2010/Soccer-CS-final-project/main/';
 const ELO_CSV_URL = BASE_URL + 'elos.csv';
 const RESULTS_CSV_URL = BASE_URL + 'results.csv';
 
-let eloDB = [];
-let resultsDB = [];
-let globalAvg = 1.35;
+let eloDB = [], resultsDB = [], globalAvg = 1.35;
 
-window.addEventListener('DOMContentLoaded', () => {
-    loadAllData();
-});
+window.addEventListener('DOMContentLoaded', loadAllData);
 
 async function loadAllData() {
     Papa.parse(ELO_CSV_URL, {
-        download: true,
-        header: true,
-        dynamicTyping: true,
-        skipEmptyLines: true,
-        complete: (eloResults) => {
-            eloDB = eloResults.data;
+        download: true, header: true, dynamicTyping: true, skipEmptyLines: true,
+        complete: (elo) => {
+            eloDB = elo.data;
             Papa.parse(RESULTS_CSV_URL, {
-                download: true,
-                header: true,
-                dynamicTyping: true,
-                skipEmptyLines: true,
-                complete: (matchResults) => {
-                    resultsDB = matchResults.data;
-                    calibrateAndInit();
+                download: true, header: true, dynamicTyping: true, skipEmptyLines: true,
+                complete: (res) => {
+                    resultsDB = res.data;
+                    initDropdowns();
                 }
             });
         }
     });
 }
 
-function calibrateAndInit() {
-    let totalGoals = 0;
-    let matchCount = 0;
-    resultsDB.forEach(m => {
-        const h = parseFloat(m.home_score);
-        const a = parseFloat(m.away_score);
-        if (!isNaN(h) && !isNaN(a)) {
-            totalGoals += (h + a);
-            matchCount++;
-        }
-    });
-    if (matchCount > 0) globalAvg = (totalGoals / (matchCount * 2));
-    initDropdowns();
-}
-
 function initDropdowns() {
-    const home = document.getElementById('homeTeam');
-    const away = document.getElementById('awayTeam');
-    const tourney = document.getElementById('tournament');
-    const city = document.getElementById('city');
-
     const teams = [...new Set(eloDB.map(r => r.team))].filter(Boolean).sort();
     const tourneys = [...new Set(resultsDB.map(r => r.tournament))].filter(Boolean).sort();
     const cities = [...new Set(resultsDB.map(r => r.city))].filter(Boolean).sort();
 
-    const fill = (el, data) => el.innerHTML = data.map(i => `<option value="${i}">${i}</option>`).join('');
-    fill(home, teams); fill(away, teams); fill(tourney, tourneys); fill(city, cities);
+    const fill = (id, data) => document.getElementById(id).innerHTML = data.map(i => `<option value="${i}">${i}</option>`).join('');
+    fill('homeTeam', teams); fill('awayTeam', teams); fill('tournament', tourneys); fill('city', cities);
 }
 
-// --- RANDOMIZER ---
 function randomizeMatch() {
-    const selects = ['homeTeam', 'awayTeam', 'tournament', 'city'];
-    selects.forEach(id => {
-        const el = document.getElementById(id);
-        const options = el.options;
-        if (options.length > 0) {
-            el.selectedIndex = Math.floor(Math.random() * options.length);
-        }
+    ['homeTeam', 'awayTeam', 'tournament', 'city'].forEach(id => {
+        const sel = document.getElementById(id);
+        sel.selectedIndex = Math.floor(Math.random() * sel.options.length);
     });
     document.getElementById('isNeutral').checked = Math.random() > 0.5;
     predictMatch();
 }
 
-// --- MATH CORE ---
-function factorial(n) {
-    if (n <= 1) return 1;
-    let res = 1;
-    for (let i = 2; i <= n; i++) res *= i;
-    return res;
+function toggleDetails() {
+    const content = document.getElementById('detailsContent');
+    const icon = document.getElementById('toggleIcon');
+    const isHidden = content.style.display === "none" || content.style.display === "";
+    content.style.display = isHidden ? "block" : "none";
+    icon.innerText = isHidden ? "▲" : "▼";
 }
 
-function poisson(k, lambda) {
-    if (lambda <= 0) return k === 0 ? 1 : 0;
-    return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k);
-}
+function factorial(n) { return n <= 1 ? 1 : n * factorial(n - 1); }
+function poisson(k, λ) { return (Math.pow(λ, k) * Math.exp(-λ)) / factorial(k); }
 
-// --- PREDICTION ENGINE ---
 function predictMatch() {
     const teamA = document.getElementById('homeTeam').value;
     const teamB = document.getElementById('awayTeam').value;
@@ -101,61 +58,59 @@ function predictMatch() {
 
     const eloA = eloDB.find(t => t.team === teamA);
     const eloB = eloDB.find(t => t.team === teamB);
-
     if (!eloA || !eloB) return;
 
-    // Balanced Scaling: Power of 3.5 favors the strong without exploding scores
-    let lambdaA = Math.pow(parseFloat(eloA.offensive_elo) / parseFloat(eloB.defensive_elo), 3.5) * globalAvg;
-    let lambdaB = Math.pow(parseFloat(eloB.offensive_elo) / parseFloat(eloA.defensive_elo), 3.5) * globalAvg;
+    // 1. Calculate Lambda with Balanced Scaling
+    let λA = Math.pow(eloA.offensive_elo / eloB.defensive_elo, 3.5) * globalAvg;
+    let λB = Math.pow(eloB.offensive_elo / eloA.defensive_elo, 3.5) * globalAvg;
 
     if (!isNeutral) {
-        lambdaA *= (parseFloat(eloA.home_elo) / 1500) * 1.10;
-        lambdaB *= (parseFloat(eloB.away_elo) / 1500) * 0.95;
+        λA *= (eloA.home_elo / 1500) * 1.10;
+        λB *= (eloB.away_elo / 1500) * 0.95;
     }
 
-    // Historical H2H Boost
+    // 2. Historical Context
+    let h2hMatches = 0;
     resultsDB.forEach(m => {
         if ((m.home_team === teamA && m.away_team === teamB) || (m.home_team === teamB && m.away_team === teamA)) {
-            const teamAWon = (m.home_team === teamA && m.home_score > m.away_score) || (m.away_team === teamA && m.away_score > m.home_score);
-            if (teamAWon) lambdaA *= 1.03; else lambdaB *= 1.03;
+            h2hMatches++;
+            const aWon = (m.home_team === teamA && m.home_score > m.away_score) || (m.away_team === teamA && m.away_score > m.home_score);
+            aWon ? λA *= 1.03 : λB *= 1.03;
         }
     });
 
-    // Final Goal Caps to keep scores realistic
-    lambdaA = Math.min(lambdaA, 4.0);
-    lambdaB = Math.min(lambdaB, 4.0);
+    λA = Math.min(λA, 4.0); λB = Math.min(λB, 4.0);
 
-    let rawWinA = 0, rawDraw = 0, rawWinB = 0;
-    let maxProb = -1, finalH = 0, finalA = 0;
-
+    // 3. Simulating Scores
+    let combos = [], pA = 0, pD = 0, pB = 0;
     for (let h = 0; h <= 10; h++) {
         for (let a = 0; a <= 10; a++) {
-            let prob = poisson(h, lambdaA) * poisson(a, lambdaB);
-            if (h > a) rawWinA += prob;
-            else if (h === a) rawDraw += prob;
-            else rawWinB += prob;
-
-            if (prob > maxProb) { maxProb = prob; finalH = h; finalA = a; }
+            let prob = poisson(h, λA) * poisson(a, λB);
+            combos.push({ s: `${h} - ${a}`, p: prob });
+            if (h > a) pA += prob; else if (h === a) pD += prob; else pB += prob;
         }
     }
 
-    const total = rawWinA + rawDraw + rawWinB;
-    renderResults(teamA, teamB, finalH, finalA, rawWinA/total, rawDraw/total, rawWinB/total);
-}
+    combos.sort((a, b) => b.p - a.p);
+    const total = pA + pD + pB;
 
-function renderResults(home, away, hScore, aScore, pA, pD, pB) {
+    // 4. Populate UI
     document.getElementById('resultsArea').classList.remove('hidden');
-    document.getElementById('matchHeading').innerText = `${home} vs ${away}`;
-    document.getElementById('homeScore').innerText = hScore;
-    document.getElementById('awayScore').innerText = aScore;
+    document.getElementById('matchHeading').innerText = `${teamA} vs ${teamB}`;
+    const topScore = combos[0].s.split(' - ');
+    document.getElementById('homeScore').innerText = topScore[0];
+    document.getElementById('awayScore').innerText = topScore[1];
 
-    const setProb = (id, val, barId) => {
-        const pct = (val * 100).toFixed(1);
+    const updateBar = (id, val, bar) => {
+        const pct = ((val/total)*100).toFixed(1);
         document.getElementById(id).innerText = pct + "%";
-        document.getElementById(barId).style.width = pct + "%";
+        document.getElementById(bar).style.width = pct + "%";
     };
+    updateBar('homeWinP', pA, 'barHome'); updateBar('drawP', pD, 'barDraw'); updateBar('awayWinP', pB, 'barAway');
 
-    setProb('homeWinP', pA, 'barHome');
-    setProb('drawP', pD, 'barDraw');
-    setProb('awayWinP', pB, 'barAway');
+    // Detailed Data
+    document.getElementById('scoreBody').innerHTML = combos.slice(0, 5).map(c => `<tr><td>${c.s}</td><td>${((c.p/total)*100).toFixed(1)}%</td></tr>`).join('');
+    document.getElementById('eloData').innerText = `${teamA} (${eloA.offensive_elo} Off) vs ${teamB} (${eloB.offensive_elo} Off)`;
+    document.getElementById('lambdaData').innerText = `${teamA}: ${λA.toFixed(2)} goals / ${teamB}: ${λB.toFixed(2)} goals`;
+    document.getElementById('historyData').innerText = `Adjusted by ${h2hMatches} historical matchups.`;
 }
