@@ -68,7 +68,7 @@ function predictMatch() {
     let baseλA = Math.pow(eloA.offensive_elo / eloB.defensive_elo, 3.5) * globalAvg;
     let baseλB = Math.pow(eloB.offensive_elo / eloA.defensive_elo, 3.5) * globalAvg;
 
-    // 2. VENUE WEIGHTING (Home Advantage Floor Logic)
+    // 2. VENUE WEIGHTING (SCIENCE: Hard Constraints)
     let venueModA = 1.0, venueModB = 1.0;
     let homeWeightFormula = "";
     let awayWeightFormula = "";
@@ -77,13 +77,13 @@ function predictMatch() {
         // Standard Home Advantage (Baseline + 50 points)
         venueModA = (eloA.home_elo + 50) / 1500; 
         
-        // Away advantage is capped at Home Advantage (Home is always >= Away)
+        // NEW CONSTRAINT: Away advantage is capped at 1.0 to prevent visiting team bias
         let rawAwayMod = eloB.away_elo / 1500;
-        venueModB = Math.min(rawAwayMod, venueModA);
+        venueModB = Math.min(rawAwayMod, 1.0); 
 
         homeWeightFormula = `(${eloA.home_elo} HomeElo + 50) / 1500`;
-        awayWeightFormula = rawAwayMod > venueModA 
-            ? `Capped at Home Weight (${venueModA.toFixed(3)})` 
+        awayWeightFormula = rawAwayMod > 1.0 
+            ? `Capped at 1.000 (Preventing Model Drift)` 
             : `${eloB.away_elo} AwayElo / 1500`;
     } else {
         homeWeightFormula = "Neutral (1.000)";
@@ -120,7 +120,7 @@ function predictMatch() {
     let λA = baseλA * venueModA * (1 + (totalPtsA / 100));
     let λB = baseλB * venueModB * (1 + (totalPtsB / 100));
 
-    // 4. SIMULATION
+    // 4. SIMULATION (MATH: Matrix Generation)
     let combos = [], pA = 0, pD = 0, pB = 0;
     for (let h = 0; h <= 10; h++) {
         for (let a = 0; a <= 10; a++) {
@@ -129,8 +129,20 @@ function predictMatch() {
             if (h > a) pA += prob; else if (h === a) pD += prob; else pB += prob;
         }
     }
+
+    // MATH CONSTRAINT: Ensure minimum 0.1% Draw probability for statistical realism
+    if (pD < 0.001) {
+        let diff = 0.001 - pD;
+        pD = 0.001;
+        pA -= diff / 2;
+        pB -= diff / 2;
+    }
+
     combos.sort((x, y) => y.p - x.p);
     const total = pA + pD + pB;
+
+    // ENTREPRENEURSHIP: Parity Score Calculation
+    const parityScore = 100 - Math.abs(((pA/total)*100) - ((pB/total)*100));
 
     // 5. UPDATE UI
     document.getElementById('resultsArea').classList.remove('hidden');
@@ -144,6 +156,11 @@ function predictMatch() {
         document.getElementById(barId).style.width = pct + "%";
     };
     setProb('homeWinP', pA, 'barHome'); setProb('drawP', pD, 'barDraw'); setProb('awayWinP', pB, 'barAway');
+
+    // Display Parity Score if you have an element for it (e.g., id="parityVal")
+    if(document.getElementById('parityVal')) {
+        document.getElementById('parityVal').innerText = "Parity Score: " + parityScore.toFixed(1) + "%";
+    }
 
     document.getElementById('scoreBody').innerHTML = combos.slice(0, 5).map(c => 
         `<tr><td>${c.s}</td><td>${((c.p/total)*100).toFixed(1)}%</td></tr>`).join('');
@@ -166,5 +183,8 @@ Total λ: ${baseλA.toFixed(3)} * Venue(${venueModA.toFixed(3)}) * Hist(${(1+tot
 ${teamB} λ CALCULATION:
 Base: (${eloB.offensive_elo} Off / ${eloA.defensive_elo} Def)^3.5 * 1.35 = ${baseλB.toFixed(3)}
 Venue Weight: ${awayWeightFormula} = ${venueModB.toFixed(3)}
-Total λ: ${baseλB.toFixed(3)} * Venue(${venueModB.toFixed(3)}) * Hist(${(1+totalPtsB/100).toFixed(2)}) = ${λB.toFixed(3)} goals`;
+Total λ: ${baseλB.toFixed(3)} * Venue(${venueModB.toFixed(3)}) * Hist(${(1+totalPtsB/100).toFixed(2)}) = ${λB.toFixed(3)} goals
+
+ENTREPRENEURIAL METRIC:
+Match Parity Score: ${parityScore.toFixed(1)}% (100% = Perfect Competitive Balance)`;
 }
