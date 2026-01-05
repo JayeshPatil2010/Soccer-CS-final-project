@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Predictor Pro | International Soccer Engine</title>
+    <title>Predictor Pro | Advanced Soccer Engine</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 </head>
@@ -12,7 +12,7 @@
     <div class="glass-container">
         <header>
             <h1>Predictor Pro</h1>
-            <p class="subtitle">Data-Driven International Analysis</p>
+            <p class="subtitle">Elo-Driven Match Analysis</p>
         </header>
         
         <div class="input-grid">
@@ -90,12 +90,18 @@
                             <tbody id="scoreBody"></tbody>
                         </table>
                     </div>
+
                     <div class="details-section">
-                        <h3>Engine Data Points</h3>
+                        <h3>Historical H2H Matches</h3>
+                        <div id="h2hList" class="h2h-container"></div>
+                    </div>
+
+                    <div class="details-section">
+                        <h3>Engine Data & Point Weights</h3>
                         <ul class="data-list">
-                            <li><strong>Elo Context:</strong> <span id="eloData"></span></li>
-                            <li><strong>Goal Expectancy (λ):</strong> <span id="lambdaData"></span></li>
-                            <li><strong>Historical Info:</strong> <span id="historyData"></span></li>
+                            <li><strong>Used Elo Ratings:</strong> <span id="eloDetails"></span></li>
+                            <li><strong>Adjustment Points:</strong> <span id="pointsDetails"></span></li>
+                            <li><strong>Calculated Goal λ:</strong> <span id="lambdaDetails"></span></li>
                         </ul>
                     </div>
                 </div>
