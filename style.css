@@ -58,3 +58,18 @@ button { flex: 2; padding: 16px; background: var(--apple-blue); color: white; bo
     font-size: 11px;
     border: 1px solid #ddd;
 }
+/* Add a glowing effect to the Predict button */
+#predictBtn:hover {
+    box-shadow: 0 0 15px rgba(0, 122, 255, 0.6);
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
+}
+
+/* Style for the flag icons you might add */
+.team-flag {
+    width: 30px;
+    height: 20px;
+    border-radius: 4px;
+    vertical-align: middle;
+    margin-right: 10px;
+}
