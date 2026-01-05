@@ -1,3 +1,58 @@
+const BASE_URL = 'https://raw.githubusercontent.com/JayeshPatil2010/Soccer-CS-final-project/main/';
+const ELO_CSV_URL = BASE_URL + 'elos.csv';
+const RESULTS_CSV_URL = BASE_URL + 'results.csv';
+
+let eloDB = [], resultsDB = [], globalAvg = 1.35;
+
+window.addEventListener('DOMContentLoaded', loadAllData);
+
+async function loadAllData() {
+    Papa.parse(ELO_CSV_URL, {
+        download: true, header: true, dynamicTyping: true, skipEmptyLines: true,
+        complete: (elo) => {
+            eloDB = elo.data;
+            Papa.parse(RESULTS_CSV_URL, {
+                download: true, header: true, dynamicTyping: true, skipEmptyLines: true,
+                complete: (res) => {
+                    resultsDB = res.data;
+                    initDropdowns();
+                }
+            });
+        }
+    });
+}
+
+function initDropdowns() {
+    const teams = [...new Set(eloDB.map(r => r.team))].filter(Boolean).sort();
+    const tourneys = [...new Set(resultsDB.map(r => r.tournament))].filter(Boolean).sort();
+    const cities = [...new Set(resultsDB.map(r => r.city))].filter(Boolean).sort();
+    
+    const fill = (id, data) => {
+        const el = document.getElementById(id);
+        el.innerHTML = data.map(i => `<option value="${i}">${i}</option>`).join('');
+    };
+    fill('homeTeam', teams); fill('awayTeam', teams); fill('tournament', tourneys); fill('city', cities);
+}
+
+function randomizeMatch() {
+    ['homeTeam', 'awayTeam', 'tournament', 'city'].forEach(id => {
+        const sel = document.getElementById(id);
+        sel.selectedIndex = Math.floor(Math.random() * sel.options.length);
+    });
+    document.getElementById('isNeutral').checked = Math.random() > 0.5;
+    predictMatch();
+}
+
+function toggleDetails() {
+    const content = document.getElementById('detailsContent');
+    const isHidden = content.style.display === "none" || content.style.display === "";
+    content.style.display = isHidden ? "block" : "none";
+    document.getElementById('toggleIcon').innerText = isHidden ? "▲" : "▼";
+}
+
+function factorial(n) { return n <= 1 ? 1 : n * factorial(n - 1); }
+function poisson(k, λ) { return (Math.pow(λ, k) * Math.exp(-λ)) / factorial(k); }
+
 function predictMatch() {
     const teamA = document.getElementById('homeTeam').value;
     const teamB = document.getElementById('awayTeam').value;
@@ -13,23 +68,29 @@ function predictMatch() {
     let baseλA = Math.pow(eloA.offensive_elo / eloB.defensive_elo, 3.5) * globalAvg;
     let baseλB = Math.pow(eloB.offensive_elo / eloA.defensive_elo, 3.5) * globalAvg;
 
-    // 2. FIXED VENUE WEIGHTING (Standard +50 Home Advantage)
+    // 2. VENUE WEIGHTING (Home Advantage Floor Logic)
     let venueModA = 1.0, venueModB = 1.0;
     let homeWeightFormula = "";
     let awayWeightFormula = "";
 
     if (!isNeutral) {
-        // We add 50 points to the Home team's rating to simulate Home Field Advantage
+        // Standard Home Advantage (Baseline + 50 points)
         venueModA = (eloA.home_elo + 50) / 1500; 
-        venueModB = eloB.away_elo / 1500;
-        homeWeightFormula = `(${eloA.home_elo} HomeElo + 50 Advantage) / 1500`;
-        awayWeightFormula = `${eloB.away_elo} AwayElo / 1500`;
+        
+        // Away advantage is capped at Home Advantage (Home is always >= Away)
+        let rawAwayMod = eloB.away_elo / 1500;
+        venueModB = Math.min(rawAwayMod, venueModA);
+
+        homeWeightFormula = `(${eloA.home_elo} HomeElo + 50) / 1500`;
+        awayWeightFormula = rawAwayMod > venueModA 
+            ? `Capped at Home Weight (${venueModA.toFixed(3)})` 
+            : `${eloB.away_elo} AwayElo / 1500`;
     } else {
         homeWeightFormula = "Neutral (1.000)";
         awayWeightFormula = "Neutral (1.000)";
     }
 
-    // 3. HISTORICAL POINT SWING (No changes here)
+    // 3. HISTORICAL POINT SWING
     let h2hPtsA = 0, h2hPtsB = 0, h2hGames = [];
     let cityPtsA = 0, cityPtsB = 0;
     let tourneyPtsA = 0, tourneyPtsB = 0;
@@ -96,7 +157,6 @@ function predictMatch() {
         <li><b>Tournament History:</b> ${teamA} (+${tourneyPtsA} pts) | ${teamB} (+${tourneyPtsB} pts)</li>
     `;
 
-    // UPDATED MATH BREAKDOWN SHOWING THE CALCULATIONS
     document.getElementById('mathBreakdown').innerText = `
 ${teamA} λ CALCULATION:
 Base: (${eloA.offensive_elo} Off / ${eloB.defensive_elo} Def)^3.5 * 1.35 = ${baseλA.toFixed(3)}
