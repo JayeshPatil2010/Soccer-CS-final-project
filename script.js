@@ -61,45 +61,52 @@ function predictMatch() {
     if (!eloA || !eloB) return;
 
     // 1. Base Goal Expectancy (Offensive vs Defensive Elo)
-    let λA = Math.pow(eloA.offensive_elo / eloB.defensive_elo, 3.5) * globalAvg;
-    let λB = Math.pow(eloB.offensive_elo / eloA.defensive_elo, 3.5) * globalAvg;
+    let baseλA = Math.pow(eloA.offensive_elo / eloB.defensive_elo, 3.5) * globalAvg;
+    let baseλB = Math.pow(eloB.offensive_elo / eloA.defensive_elo, 3.5) * globalAvg;
 
-    // 2. Venue Context (Home vs Away Elo)
+    // 2. Venue Context (Home vs Away Elo - Ignored if Neutral)
+    let venueModA = 1.0, venueModB = 1.0;
     if (!isNeutral) {
-        λA *= (eloA.home_elo / 1500); 
-        λB *= (eloB.away_elo / 1500);
+        venueModA = (eloA.home_elo / 1500); 
+        venueModB = (eloB.away_elo / 1500);
     }
 
-    // 3. Historical Point System Logic
-    let ptsA = 0, ptsB = 0, h2hGames = [];
+    // 3. Historical Point Breakdown Logic
+    let h2hPtsA = 0, h2hPtsB = 0, h2hGames = [];
+    let cityPtsA = 0, cityPtsB = 0;
+    let tourneyPtsA = 0, tourneyPtsB = 0;
+
     resultsDB.forEach(m => {
         const isH2H = (m.home_team === teamA && m.away_team === teamB) || (m.home_team === teamB && m.away_team === teamA);
         
         if (isH2H) {
             h2hGames.push(m);
             // H2H Win: +3 Points
-            if (m.home_team === teamA && m.home_score > m.away_score) ptsA += 3;
-            else if (m.away_team === teamA && m.away_score > m.home_score) ptsA += 3;
-            else if (m.home_team === teamB && m.home_score > m.away_score) ptsB += 3;
-            else if (m.away_team === teamB && m.away_score > m.home_score) ptsB += 3;
+            if (m.home_team === teamA && m.home_score > m.away_score) h2hPtsA += 3;
+            else if (m.away_team === teamA && m.away_score > m.home_score) h2hPtsA += 3;
+            else if (m.home_team === teamB && m.home_score > m.away_score) h2hPtsB += 3;
+            else if (m.away_team === teamB && m.away_score > m.home_score) h2hPtsB += 3;
         }
 
         // City Win: +1 Point
         if (m.city === selCity) {
-            if (m.home_team === teamA && m.home_score > m.away_score) ptsA += 1;
-            if (m.home_team === teamB && m.home_score > m.away_score) ptsB += 1;
+            if (m.home_team === teamA && m.home_score > m.away_score) cityPtsA += 1;
+            if (m.home_team === teamB && m.home_score > m.away_score) cityPtsB += 1;
         }
 
-        // Tournament Win: +1 Point (No boost for Friendlies)
+        // Tournament Win: +1 Point (Ignore for Friendlies)
         if (selTourney !== "Friendly" && m.tournament === selTourney) {
-            if (m.home_team === teamA && m.home_score > m.away_score) ptsA += 1;
-            if (m.home_team === teamB && m.home_score > m.away_score) ptsB += 1;
+            if (m.home_team === teamA && m.home_score > m.away_score) tourneyPtsA += 1;
+            if (m.home_team === teamB && m.home_score > m.away_score) tourneyPtsB += 1;
         }
     });
 
+    const totalPtsA = h2hPtsA + cityPtsA + tourneyPtsA;
+    const totalPtsB = h2hPtsB + cityPtsB + tourneyPtsB;
+
     // Apply Boost: Each point adds 1% to the lambda
-    λA *= (1 + (ptsA / 100));
-    λB *= (1 + (ptsB / 100));
+    let λA = baseλA * venueModA * (1 + (totalPtsA / 100));
+    let λB = baseλB * venueModB * (1 + (totalPtsB / 100));
     λA = Math.min(λA, 4.0); λB = Math.min(λB, 4.0);
 
     // 4. Probability Simulation
@@ -114,7 +121,7 @@ function predictMatch() {
     combos.sort((x, y) => y.p - x.p);
     const total = pWinA + pDraw + pWinB;
 
-    // 5. Update Interface
+    // 5. Update UI
     document.getElementById('resultsArea').classList.remove('hidden');
     document.getElementById('matchHeading').innerText = `${teamA} vs ${teamB}`;
     document.getElementById('homeScore').innerText = combos[0].score.split('-')[0];
@@ -127,7 +134,7 @@ function predictMatch() {
     };
     renderProb('homeWinP', pWinA, 'barHome'); renderProb('drawP', pDraw, 'barDraw'); renderProb('awayWinP', pWinB, 'barAway');
 
-    // 6. Deep Dive Data Population
+    // 6. Detailed Data Rendering
     document.getElementById('scoreBody').innerHTML = combos.slice(0, 5).map(c => 
         `<tr><td>${c.score}</td><td>${((c.p/total)*100).toFixed(1)}%</td></tr>`).join('');
 
@@ -137,11 +144,31 @@ function predictMatch() {
             <span style="width:75px">${m.date}</span>
             <span>${m.home_team} vs ${m.away_team}</span>
             <b>${m.home_score}-${m.away_score}</b>
-        </div>`).join('') : "<p>None</p>";
+        </div>`).join('') : "None";
 
-    document.getElementById('eloDetails').innerHTML = `
-        <br><b>${teamA}:</b> Off ${eloA.offensive_elo} | Def ${eloA.defensive_elo} | Home ${eloA.home_elo}
-        <br><b>${teamB}:</b> Off ${eloB.offensive_elo} | Def ${eloB.defensive_elo} | Away ${eloB.away_elo}`;
-    document.getElementById('pointsDetails').innerText = `${teamA}: +${ptsA} pts | ${teamB}: +${ptsB} pts (1pt = 1% boost)`;
-    document.getElementById('lambdaDetails').innerText = `${teamA}: ${λA.toFixed(3)} | ${teamB}: ${λB.toFixed(3)}`;
+    document.getElementById('pointsBreakdown').innerHTML = `
+        <li><b>H2H Points (+3 per win):</b> ${teamA} (+${h2hPtsA}) | ${teamB} (+${h2hPtsB})</li>
+        <li><b>City Points (+1 per win):</b> ${teamA} (+${cityPtsA}) | ${teamB} (+${cityPtsB})</li>
+        <li><b>Tournament Points (+1 per win):</b> ${teamA} (+${tourneyPtsA}) | ${teamB} (+${tourneyPtsB})</li>
+    `;
+
+    const venueProof = isNeutral ? "1.000 (Neutral Ground - Venue Elo Ignored)" : 
+                      `${teamA} HomeElo($${eloA.home_elo}/1500$) = ${venueModA.toFixed(3)} | ${teamB} AwayElo($${eloB.away_elo}/1500$) = ${venueModB.toFixed(3)}`;
+
+    document.getElementById('mathBreakdown').innerText = `
+CALCULATION FOR ${teamA}:
+Base Goal λ: (${eloA.offensive_elo} / ${eloB.defensive_elo})^3.5 * ${globalAvg} = ${baseλA.toFixed(3)}
+Venue Multiplier: ${venueModA.toFixed(3)}
+Historical Points Boost: 1 + (${totalPtsA}/100) = ${(1 + totalPtsA/100).toFixed(2)}x
+Final Predicted Goals (λ): ${λA.toFixed(3)}
+
+CALCULATION FOR ${teamB}:
+Base Goal λ: (${eloB.offensive_elo} / ${eloA.defensive_elo})^3.5 * ${globalAvg} = ${baseλB.toFixed(3)}
+Venue Multiplier: ${venueModB.toFixed(3)}
+Historical Points Boost: 1 + (${totalPtsB}/100) = ${(1 + totalPtsB/100).toFixed(2)}x
+Final Predicted Goals (λ): ${λB.toFixed(3)}
+
+VENUE DATA USED:
+${venueProof}
+    `;
 }
